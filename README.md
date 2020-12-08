@@ -1,1 +1,1 @@
-DS-Project
+Distributed Systems - Fire Detection
