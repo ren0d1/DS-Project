@@ -1,6 +1,6 @@
 GROUP TODO|
 -----------
-Detect fire - H
+Detect fire - H --> working on stats
 notify detected fire
 kill fire when notified
 check sign of life - R
