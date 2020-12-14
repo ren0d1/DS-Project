@@ -17,6 +17,9 @@ classdef Simulator <  handle
         % Expected maximum length for a properly working bluetooth ...
         %transmission in meters.
         maximum_bluetooth_range = 10;
+        
+        % Rate at which the sensors sign of life is sent
+        sign_of_life_rate = 1; % in minutes
     end
     
     properties (Access = private)
@@ -156,8 +159,8 @@ classdef Simulator <  handle
                                               step);
                             
                             % Simulate random technical problem preventing ...
-                            %sensor from working any longer.
-                            if rand() <= 0.05
+                            %sensor from working any longer. (TODO)
+                            if rand() <= 0.5
                                 obj.sensorDefect(sz);
                             end            
 
@@ -705,6 +708,13 @@ classdef Simulator <  handle
                     
                     sensor.update(sensor_area_temperature, humidity, ...
                                   day, hour, tick);
+                              
+                    % Used to make sure the sensors send a sign of life ...
+                    %at the expected rate which may differ from sensing ...
+                    %rate.
+                    if mod(tick, obj.sign_of_life_rate) == 0
+                        sensor.send_sign_of_life();
+                    end   
                 end
             end
         end

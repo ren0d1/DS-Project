@@ -3,13 +3,16 @@ GROUP TODO|
 Detect fire - H
 notify detected fire
 kill fire when notified
-check sign of life - R
+allow minute to be float - R
+change time_stamps checks to dedicated function - R
 replace dead sensors - R
 include temp, humidity in fire prob
 include relative humidity in fire spread and temperature
 	temperature goes up, then rel hum goes down but if rel hum is high then fire 'burn'/spreads slower
 change dead sensors to be detected after x time not available and not instantly
 do analytics
+add comments ~ descriptions
+harmonize naming convention
 
 ----------
 OPTIONAL |
