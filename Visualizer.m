@@ -52,16 +52,16 @@ classdef Visualizer < handle
             
             obj.CurrentTimeLabel = uilabel(obj.UIFigure);
             obj.CurrentTimeLabel.Text = "Initialization";
-            obj.CurrentTimeLabel.Position = [140 figure_size(4)-25 160 22];
+            obj.CurrentTimeLabel.Position = [140 figure_size(4)-25 215 22];
             obj.CurrentTimeLabel.FontColor = 'b';
             
             obj.CurrentAmountOfFiresTextLabel = uilabel(obj.UIFigure);
             obj.CurrentAmountOfFiresTextLabel.Text = "Current amount of active fires: ";
-            obj.CurrentAmountOfFiresTextLabel.Position = [315 figure_size(4)-25 165 22];
+            obj.CurrentAmountOfFiresTextLabel.Position = [370 figure_size(4)-25 165 22];
             
             obj.CurrentAmountOfFiresLabel = uilabel(obj.UIFigure);
             obj.CurrentAmountOfFiresLabel.Text = "0";
-            obj.CurrentAmountOfFiresLabel.Position = [480 figure_size(4)-25 figure_size(3) 22];
+            obj.CurrentAmountOfFiresLabel.Position = [535 figure_size(4)-25 figure_size(3) 22];
             obj.CurrentAmountOfFiresLabel.FontColor = 'k';
             
             % Show the figure after all components are created
@@ -139,8 +139,10 @@ classdef Visualizer < handle
             % Update simulation time display
             current_sim_time = sim_time;
             
-            if  current_sim_time{3} ~= 60
-                obj.CurrentTimeLabel.Text = "Day: " + current_sim_time(1) + "; Hour: " + current_sim_time(2) + "; Minute: " + current_sim_time(3);
+            if current_sim_time{4} < 60
+                obj.CurrentTimeLabel.Text = "Day: " + current_sim_time(1) + "; Hour: " + current_sim_time(2) + "; Minute: " + current_sim_time(3) + "; Second: " + current_sim_time(4);
+            elseif current_sim_time{3} < 59
+                obj.CurrentTimeLabel.Text = "Day: " + current_sim_time(1) + "; Hour: " + current_sim_time(2) + "; Minute: " + (current_sim_time{3} + 1);
             else
                 obj.CurrentTimeLabel.Text = "Day: " + current_sim_time(1) + "; Hour: " + (current_sim_time{2} + 1) + "; Minute: 0";
             end

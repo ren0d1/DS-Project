@@ -6,7 +6,7 @@ classdef Sensor < handle
         uuid;
         
         % Global time stamp to synchronize data communication
-        time_stamp; % {day, hour, tick}
+        time_stamp; % {day, hour, minute, second}
         location; %[x, y]
                 
         real_env_temperature; %degrees
@@ -52,7 +52,7 @@ classdef Sensor < handle
     end
     
     properties (Constant)
-        base_station = BaseStation();
+        base_station = BaseStation.getInstance();
         
         % This represents the time allowed before the lack of sign of ...
         %life becomes problematic.
@@ -64,8 +64,8 @@ classdef Sensor < handle
             Sensor.base_station.listen_for_alert(1, fire);
         end 
         
-        function notify_base_about_dead_sensor(sensor_uuid)
-            Sensor.base_station.listen_for_alert(2, sensor_uuid);
+        function notify_base_about_dead_sensor(sensor_info)
+            Sensor.base_station.listen_for_alert(2, sensor_info);
         end 
     end
     
@@ -74,7 +74,7 @@ classdef Sensor < handle
             obj.location = location;
             obj.real_env_temperature = temperature;
             obj.real_env_humidity = humidity;
-            obj.time_stamp = [1, 1, 0];
+            obj.time_stamp = [1, 1, 1, 0];
             obj.uuid = java.util.UUID.randomUUID;
         end
         
@@ -131,7 +131,7 @@ classdef Sensor < handle
             % Update temperature and humidity
             obj.real_env_temperature = real_env_temperature;
             obj.real_env_humidity = real_env_humidity;
-            obj.time_stamp = [day, hour, tick];
+            obj.time_stamp = [day, hour, fix(tick), round(mod(tick, 1) * 60)];
             
             obj.compute_fireprob();
             obj.send_data_packages();
@@ -182,7 +182,7 @@ classdef Sensor < handle
                 else
                     % Prepare the data needed for data extraction from the ...
                     %payload
-                    neighborly_sensor_information.time_stamp = [0, 0, 0];
+                    neighborly_sensor_information.time_stamp = [0, 0, 0, 0];
 
                     % Processes the payload from the received data ...
                     %package to extract the sensor informations formatted as ...
@@ -204,22 +204,28 @@ classdef Sensor < handle
                     neighborly_sensor_information.humidity = ...
                         hex2num(transformed_data);
 
-                    % Retrieve timestamp                
-                    % Minute timestamp (1 byte max)
+                    % Retrieve timestamp
+                    % Second timestamp (1 byte max)
                     transformed_data = string(payload(payload_length - 16, :));
+
+                    neighborly_sensor_information.time_stamp(4) = ...
+                        hex2dec(transformed_data);
+                    
+                    % Minute timestamp (1 byte max)
+                    transformed_data = string(payload(payload_length - 17, :));
 
                     neighborly_sensor_information.time_stamp(3) = ...
                         hex2dec(transformed_data);
 
                     % Hour timestamp (1 byte max)
-                    transformed_data = string(payload(payload_length - 17, :));
+                    transformed_data = string(payload(payload_length - 18, :));
 
                     neighborly_sensor_information.time_stamp(2) = ...
                         hex2dec(transformed_data);
 
                     % Day timestamp (1 byte max)
                     transformed_data = join(string(payload(...
-                        17 : payload_length - 18, :)), '');
+                        17 : payload_length - 19, :)), '');
 
                     neighborly_sensor_information.time_stamp(1) = ...
                         hex2dec(transformed_data);
@@ -454,10 +460,10 @@ classdef Sensor < handle
                 %connections and network problems. (TODO)
                 for rsli = 1 : length(obj.received_sign_of_life)
                     if obj.neighborly_sensors{nbi}.getUuid() == ...
-                            obj.received_data{rsli}.uuid && ...
+                            obj.received_sign_of_life{rsli}.uuid && ...
                        TimeHelper.findIfTimeStampsAreNotTooMuchApart(...
                             obj.time_stamp, obj.max_allowed_delay, ...
-                            obj.received_data{rsli}.time_stamp)
+                            obj.received_sign_of_life{rsli}.time_stamp)
 
                         known_sensor_sent_message = true;
                     end
@@ -465,10 +471,10 @@ classdef Sensor < handle
 
                 if ~known_sensor_sent_message
                     obj.dead_sensors{end+1} = ...
-                        obj.neighborly_sensors{nbi}.getUuid();
+                        obj.neighborly_sensors{nbi};
 
                     Sensor.notify_base_about_dead_sensor(...
-                        obj.neighborly_sensors{nbi}.getUuid());
+                        obj.neighborly_sensors{nbi}.getLocation());
                 end
             end
         end
@@ -487,6 +493,7 @@ classdef Sensor < handle
             hex_day = dec2hex(data_package.time_stamp(1));
             hex_hour = dec2hex(data_package.time_stamp(2));
             hex_minute = dec2hex(data_package.time_stamp(3));
+            hex_second = dec2hex(data_package.time_stamp(4));
 
             if mod(length(hex_rel_pos_temp), 2) == 1
                 hex_rel_pos_temp = strcat('0', hex_rel_pos_temp);
@@ -508,12 +515,16 @@ classdef Sensor < handle
                 hex_minute = strcat('0', hex_minute);
             end
             
+            if mod(length(hex_second), 2) == 1
+                hex_second = strcat('0', hex_second);
+            end
+            
             uuid_to_share = erase(string(obj.uuid), "-");
 
             % Concatenate the data
             complete_payload_string = strcat(hex_rel_pos_temp, ...
                         hex_rel_pos_humidity, ...
-                        hex_day, hex_hour, hex_minute, ...
+                        hex_day, hex_hour, hex_minute, hex_second, ...
                         uuid_to_share);
             
             % Transform into char arrays because it creates a 1x1 string ...

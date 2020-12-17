@@ -1,4 +1,4 @@
-%clear all; % clear all variables from memory
+clear all; % clear all variables from memory (needed for singleton to work properly)
 clc; % clear command window
 
 % Configuration properties
