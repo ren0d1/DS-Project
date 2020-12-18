@@ -663,7 +663,7 @@ classdef Simulator <  handle
                 end
             end
         end
-        
+        %sz --> subzone
         function updateSensors(obj, sz_num, temperature, humidity, ...
                                day, hour, tick)
             % Check if there are any active sensor in the subzone
