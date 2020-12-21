@@ -25,7 +25,7 @@ classdef TimeHelper
                                  time_stamp_2(2) * 60 + time_stamp_2(3);
                              
             delay_is_okay = false;
-            if time_stamp_1_value - delay <= time_stamp_2_value    
+            if time_stamp_1_value - delay < time_stamp_2_value    
                 delay_is_okay = true;
             end
         end

@@ -29,7 +29,6 @@ classdef Sensor < handle
         %is used to notify the sensors which are in range to receive the ...
         %bluetooth packet - makes simulation easier)
         neighborly_sensors;
-        dead_sensors;
         
         % List of data packages which is shared with other sensors.
         data_packages;
@@ -55,8 +54,9 @@ classdef Sensor < handle
         base_station = BaseStation.getInstance();
         
         % This represents the time allowed before the lack of sign of ...
-        %life becomes problematic.
-        max_allowed_delay = 5;
+        %life becomes problematic. (Value needs to be at least 1 due to ...
+        %limitations from the simulation sequential nature).
+        max_allowed_delay = 5; %minutes
     end
     
     methods (Static)
@@ -126,6 +126,10 @@ classdef Sensor < handle
             
         end
         
+        function setTimeStamp(obj, day, hour, tick)
+            obj.time_stamp = [day, hour, fix(tick), round(mod(tick, 1) * 60)];
+        end
+        
         function update(obj, real_env_temperature, real_env_humidity, ...
                         day, hour, tick)
             % Update temperature and humidity
@@ -138,20 +142,11 @@ classdef Sensor < handle
             
             if ~isempty(obj.received_data)
                 obj.compute_fireprob_distributed();
-                
-                if obj.time_stamp(1) ~= 1 || obj.time_stamp(2) ~= 1 || ...
-                        obj.time_stamp(3) ~= 1
-                    obj.check_sign_of_life();
-                end
             end
         end
         
         function addNeighbor(obj, sensor)
             obj.neighborly_sensors{end+1} = sensor;
-        end
-        
-        function addNeighbors(obj, sensors)
-            obj.neighborly_sensors = sensors;
         end
         
         function receive_data_package(obj, LE_frame)
@@ -277,6 +272,52 @@ classdef Sensor < handle
             %in reality it would be processed in parallel.
             for s = 1 : length(obj.neighborly_sensors)
                 obj.neighborly_sensors{s}.receive_data_package(LE_frame);
+            end
+        end
+                 
+        function check_sign_of_life(obj)
+            indexes_of_missing_sensors = {};
+            
+            % The delay is checked to leave some room for 'lost' ...
+            %connections and network problems. We loop first over ...
+            %the received sign of life because the simulation expects ...
+            %at least one message to be exchanged before sensors break.
+            for rsli = 1 : length(obj.received_sign_of_life)
+                known_sensor_sent_message = false;
+                known_sensor_index = 0;
+                
+                for nbi = 1 : length(obj.neighborly_sensors)
+                    if obj.neighborly_sensors{nbi}.getUuid() == ...
+                            obj.received_sign_of_life{rsli}.uuid
+                        
+                        known_sensor_index = nbi;
+                        
+                        if TimeHelper.findIfTimeStampsAreNotTooMuchApart(...
+                            obj.time_stamp, obj.max_allowed_delay, ...
+                            obj.received_sign_of_life{rsli}.time_stamp)
+                        
+                            known_sensor_sent_message = true;
+                        end
+                    end
+                end
+                
+                if ~known_sensor_sent_message
+                    notification.uuid = ...
+                        obj.neighborly_sensors{known_sensor_index}.getUuid();
+                    notification.location = ...
+                        obj.neighborly_sensors{known_sensor_index}.getLocation();
+                    
+                    Sensor.notify_base_about_dead_sensor(notification);
+                    
+                    obj.neighborly_sensors(known_sensor_index) = [];
+                    
+                    indexes_of_missing_sensors{end+1} = rsli;
+                end
+            end
+            
+            for rsc = 1 : length(indexes_of_missing_sensors)
+                obj.received_sign_of_life(...
+                        indexes_of_missing_sensors{rsc} - (rsc - 1)) = [];
             end
         end
     end
@@ -447,36 +488,6 @@ classdef Sensor < handle
                     obj.fire_detected_global = true;
                 end
             end 
-        end
-        
-        function check_sign_of_life(obj)
-            % Check if we have the same amount of received sign of life ...
-            %than the amount of known neighbors. If not, then we know ...
-            %we might have a dead neighbor. (TODO)
-            for nbi = 1 : length(obj.neighborly_sensors)
-                known_sensor_sent_message = false;
-
-                % Add time_stamp check ~ leave some room for 'lost' ...
-                %connections and network problems. (TODO)
-                for rsli = 1 : length(obj.received_sign_of_life)
-                    if obj.neighborly_sensors{nbi}.getUuid() == ...
-                            obj.received_sign_of_life{rsli}.uuid && ...
-                       TimeHelper.findIfTimeStampsAreNotTooMuchApart(...
-                            obj.time_stamp, obj.max_allowed_delay, ...
-                            obj.received_sign_of_life{rsli}.time_stamp)
-
-                        known_sensor_sent_message = true;
-                    end
-                end
-
-                if ~known_sensor_sent_message
-                    obj.dead_sensors{end+1} = ...
-                        obj.neighborly_sensors{nbi};
-
-                    Sensor.notify_base_about_dead_sensor(...
-                        obj.neighborly_sensors{nbi}.getLocation());
-                end
-            end
         end
         
         function send_data_packages(obj)

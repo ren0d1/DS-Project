@@ -5,6 +5,7 @@ classdef BaseStation < handle
     properties (Access = private)
         fires_info;
         dead_sensors_info;
+        dead_sensors_needing_replacement;
     end
     
     methods (Access = private)
@@ -36,18 +37,16 @@ classdef BaseStation < handle
                   dead_sensor_already_known = false;
                   
                   for dsii = 1 : length(obj.dead_sensors_info)
-                      % If Xs match
-                      if obj.dead_sensors_info{dsii}(1) == information(1)
-                          % Check if Ys match
-                          if obj.dead_sensors_info{dsii}(2) == information(2)
-                              dead_sensor_already_known = true;
-                              break;
-                          end
+                      if obj.dead_sensors_info{dsii}.uuid == information.uuid
+                         dead_sensor_already_known = true;
+                         break;
                       end
                   end
                   
                   if ~dead_sensor_already_known
                       obj.dead_sensors_info{end+1} = information;
+                      obj.dead_sensors_needing_replacement{end+1} = ...
+                          information.location;
                   end
                otherwise
                   error('Alert type unknown.')
@@ -55,8 +54,8 @@ classdef BaseStation < handle
         end
         
         function sensors_info = get_sensors_to_replace(obj)
-            sensors_info = obj.dead_sensors_info;
-            obj.dead_sensors_info = {};
+            sensors_info = obj.dead_sensors_needing_replacement;
+            obj.dead_sensors_needing_replacement = {};
         end
     end
 end

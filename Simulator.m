@@ -12,7 +12,7 @@ classdef Simulator <  handle
                        %due to plane speed and fall.
         
         % Variables for random scatter
-        amount_of_sensors_per_100_square_meters = 3;
+        amount_of_sensors_per_100_square_meters = 2;
         
         % Expected maximum length for a properly working bluetooth ...
         %transmission in meters.
@@ -183,7 +183,8 @@ classdef Simulator <  handle
                         if mod(tick, obj.sign_of_life_rate) == 0
                             bs = BaseStation.getInstance();
                             sensors_info = bs.get_sensors_to_replace();
-                            obj.findAndReplaceSensors(sensors_info);
+                            obj.findAndReplaceSensors(sensors_info, ...
+                                                        day, hour, tick);
                         end
                     end    
                 end
@@ -659,6 +660,7 @@ classdef Simulator <  handle
                         %consider it as a neighbor to simulate ...
                         %the bluetooth communication.
                         sensor.addNeighbor(potential_neighbor_sensor);
+                        potential_neighbor_sensor.addNeighbor(sensor);
                     end
                 end
             end
@@ -761,6 +763,7 @@ classdef Simulator <  handle
                     %rate.
                     if mod(tick, obj.sign_of_life_rate) == 0
                         sensor.send_sign_of_life();
+                        sensor.check_sign_of_life();
                     end   
                 end
             end
@@ -788,17 +791,21 @@ classdef Simulator <  handle
                         length(subzone_sensors);
                 end
                 
-                sensor = obj.sensors_per_subzone{sz_num, amount_of_active_sensors_in_subzone};
+                sensor = obj.sensors_per_subzone{sz_num, ...
+                                amount_of_active_sensors_in_subzone};
                 
+                % Remove sensor from gui
                 if obj.visualizer_state
                     obj.visualizer.removeSensor(sensor);
                 end
                 
-                obj.sensors_per_subzone{sz_num, amount_of_active_sensors_in_subzone}(1) = [];
+                % Remove sesor from simulator list
+                obj.sensors_per_subzone{sz_num, ...
+                        amount_of_active_sensors_in_subzone}(1) = [];
             end
         end
         
-        function findAndReplaceSensors(obj, sensors_info)
+        function findAndReplaceSensors(obj, sensors_info, day, hour, tick)
             for sii = 1 : length(sensors_info)
                 [starting_subzones_temperature, ...
                      starting_subzones_humidity] = obj.initSubzonesData();
@@ -815,10 +822,10 @@ classdef Simulator <  handle
 
                     location = sensors_info{sii};
 
-                    if location(1) > start_x && ...
-                           location(1) < finish_x && ...
-                           location(2) > start_y && ...
-                           location(2) < finish_y
+                    if location(1) >= round(start_x) && ...
+                           location(1) <= round(finish_x) && ...
+                           location(2) >= round(start_y) && ...
+                           location(2) <= round(finish_y)
 
                        rdm_location = [randi(...
                            [round(location(1) - obj.variance / 2), ...
@@ -849,6 +856,8 @@ classdef Simulator <  handle
                        
                        obj.assignNeighborsForGivenSensor(sz, ...
                                 generated_sensor);
+                            
+                       generated_sensor.setTimeStamp(day, hour, tick);
 
                        obj.sensors_per_subzone{sz, ...
                                 amount_of_active_sensors_in_subzone + 1} ...
