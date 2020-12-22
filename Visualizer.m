@@ -139,15 +139,31 @@ classdef Visualizer < handle
             % Update simulation time display
             current_sim_time = sim_time;
             
-            if current_sim_time{4} < 60
-                obj.CurrentTimeLabel.Text = "Day: " + current_sim_time(1) + "; Hour: " + current_sim_time(2) + "; Minute: " + current_sim_time(3) + "; Second: " + current_sim_time(4);
-            elseif current_sim_time{3} < 59
-                obj.CurrentTimeLabel.Text = "Day: " + current_sim_time(1) + "; Hour: " + current_sim_time(2) + "; Minute: " + (current_sim_time{3} + 1);
+            seconds = current_sim_time{4};
+            
+            if seconds < 60
+                minutes = current_sim_time{3};
             else
-                obj.CurrentTimeLabel.Text = "Day: " + current_sim_time(1) + "; Hour: " + (current_sim_time{2} + 1) + "; Minute: 0";
+                seconds = 0;
+                minutes = current_sim_time{3} + 1;
             end
-                
-                
+            
+            if minutes < 60
+                hours = current_sim_time{2};
+            else
+                minutes = mod(minutes, 60);
+                hours = current_sim_time{2} + 1;
+            end
+            
+            if hours < 24
+                days = current_sim_time{1};
+            else
+                hours = mod(hours, 24);
+                days = current_sim_time{1} + 1;
+            end
+            
+            obj.CurrentTimeLabel.Text = "Day: " + days + "; Hour: " + hours + "; Minute: " + minutes + "; Second: " + seconds;
+ 
             if obj.CurrentTimeLabel.FontColor ~= 'k'
                 obj.CurrentTimeLabel.FontColor = 'k';
             end

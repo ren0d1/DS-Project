@@ -4,8 +4,6 @@ Detect fire - H
 notify detected fire
 kill fire when notified
 include temp, humidity in fire prob
-Fix locations of replacing sensors to in map range (+ stay in corresponding subzone area) - R
-Save simulation history in file - R
 include relative humidity in fire spread and temperature
 	temperature goes up, then rel hum goes down but if rel hum is high then fire 'burn'/spreads slower
 change dead sensors to be detected after x time not available and not instantly

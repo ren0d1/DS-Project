@@ -1,4 +1,4 @@
-classdef Analizer
+classdef Analyzer
     %ANALIZER Summary of this class goes here
     %   Detailed explanation goes here
     
@@ -9,7 +9,7 @@ classdef Analizer
     end
     
     methods
-        function obj = Analizer(sensors_history, fires_history)
+        function obj = Analyzer(sensors_history, fires_history)
             %ANALIZER Construct an instance of this class
             %   Detailed explanation goes here
             obj.sensors_per_subzone_at_tick_t = sensors_history;
