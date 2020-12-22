@@ -21,6 +21,7 @@ classdef Analyzer
             %   Detailed explanation goes here
             obj.sensors_per_subzone_at_tick_t
             obj.fires_at_tick_t
+            tbd = "done";
         end
     end
 end
