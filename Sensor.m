@@ -6,7 +6,7 @@ classdef Sensor < handle
         uuid;
         
         % Global time stamp to synchronize data communication
-        time_stamp; % {day, hour, tick}
+        time_stamp; % {day, hour, minute, second}
         location; %[x, y]
                 
         real_env_temperature; %degrees
@@ -29,7 +29,6 @@ classdef Sensor < handle
         %is used to notify the sensors which are in range to receive the ...
         %bluetooth packet - makes simulation easier)
         neighborly_sensors;
-        dead_sensors;
         
         % List of data packages which is shared with other sensors.
         data_packages;
@@ -38,8 +37,10 @@ classdef Sensor < handle
         % List of data packages which has been received from other sensors
         received_data_packages;
         % List of data retrieved from received data packages (measured ...
-        %temperature, measured humidity, timestamp)
+        %temperature, measured humidity, timestamp, uuid)
         received_data;
+        % List of sign of life received
+        received_sign_of_life;
         % Stores which time stamps have already been analyzed
         analyzed_time_instance;
     end
@@ -50,7 +51,12 @@ classdef Sensor < handle
     end
     
     properties (Constant)
-        base_station = BaseStation();
+        base_station = BaseStation.getInstance();
+        
+        % This represents the time allowed before the lack of sign of ...
+        %life becomes problematic. (Value needs to be at least 1 due to ...
+        %limitations from the simulation sequential nature).
+        max_allowed_delay = 5; %minutes
     end
     
     methods (Static)
@@ -58,8 +64,8 @@ classdef Sensor < handle
             Sensor.base_station.listen_for_alert(1, fire);
         end 
         
-        function notify_base_about_dead_sensor(sensor_uuid)
-            Sensor.base_station.listen_for_alert(2, sensor_uuid);
+        function notify_base_about_dead_sensor(sensor_info)
+            Sensor.base_station.listen_for_alert(2, sensor_info);
         end 
     end
     
@@ -68,7 +74,7 @@ classdef Sensor < handle
             obj.location = location;
             obj.real_env_temperature = temperature;
             obj.real_env_humidity = humidity;
-            obj.time_stamp = [1, 1, 0];
+            obj.time_stamp = [1, 1, 1, 0];
             obj.uuid = java.util.UUID.randomUUID;
         end
         
@@ -120,23 +126,22 @@ classdef Sensor < handle
             
         end
         
+        function setTimeStamp(obj, day, hour, tick)
+            obj.time_stamp = [day, hour, fix(tick), round(mod(tick, 1) * 60)];
+        end
+        
         function update(obj, real_env_temperature, real_env_humidity, ...
                         day, hour, tick)
             % Update temperature and humidity
             obj.real_env_temperature = real_env_temperature;
             obj.real_env_humidity = real_env_humidity;
-            obj.time_stamp = [day, hour, tick];
+            obj.time_stamp = [day, hour, fix(tick), round(mod(tick, 1) * 60)];
             
             obj.compute_fireprob();
             obj.send_data_packages();
             
             if ~isempty(obj.received_data)
                 obj.compute_fireprob_distributed();
-                
-                if obj.time_stamp(1) ~= 1 || obj.time_stamp(2) ~= 1 || ...
-                        obj.time_stamp(3) ~= 1
-                    obj.check_dead_neighbors();
-                end
             end
         end
         
@@ -144,73 +149,175 @@ classdef Sensor < handle
             obj.neighborly_sensors{end+1} = sensor;
         end
         
-        function addNeighbors(obj, sensors)
-            obj.neighborly_sensors = sensors;
-        end
-        
         function receive_data_package(obj, LE_frame)
             % Second argument is L2CAP config
             [leFrameDecodeStatus, ~, payload] = bleL2CAPFrameDecode(LE_frame);
             
             % Checks decoding status
-            if strcmp(leFrameDecodeStatus, 'Success') % Decoding is successful 
-                % Prepare the data needed for data extraction from the ...
-                %payload
-                neighborly_sensor_information.time_stamp = [0, 0, 0];
-                
-                % Processes the payload from the received data ...
-                %package to extract the sensor informations formatted as ...
-                %(relative temperature, relative humidity, ...
-                %timestamp_day, timestamp_hour, timestamp_minute)
-                %and then stores them in the sensor list received_data.
-                
-                % Retrieve temperature
-                transformed_data = join(string(...
-                    payload(1 : 8, :)), '');
-
-                neighborly_sensor_information.temperature = ...
-                    hex2num(transformed_data);
-                
-                % Retrieve humidity
-                transformed_data = join(string(payload(...
-                    9 : 16, :)), '');
-
-                neighborly_sensor_information.humidity = ...
-                    hex2num(transformed_data);
-                
-                % Retrieve timestamp
+            if strcmp(leFrameDecodeStatus, 'Success') % Decoding is successful
                 payload_length = length(payload(:, 1));
                 
-                % Minute timestamp (1 byte max)
-                transformed_data = string(payload(payload_length - 16, :));
-                
-                neighborly_sensor_information.time_stamp(3) = ...
-                    hex2dec(transformed_data);
-                
-                % Hour timestamp (1 byte max)
-                transformed_data = string(payload(payload_length - 17, :));
-                
-                neighborly_sensor_information.time_stamp(2) = ...
-                    hex2dec(transformed_data);
-                
-                % Day timestamp (1 byte max)
-                transformed_data = join(string(payload(...
-                    17 : payload_length - 18, :)), '');
-                
-                neighborly_sensor_information.time_stamp(1) = ...
-                    hex2dec(transformed_data);
-                
-                % UUID (32 bytes)
-                transformed_data = join(string(payload(payload_length - 15 : ...
-                                            payload_length, :)), '');
-                neighborly_sensor_information.uuid = transformed_data;
-                                        
-                                        
-                obj.received_data{end+1} = neighborly_sensor_information;
+                % Check if 32 bytes, then it is only a sign of life
+                if payload_length == 16
+                    transformed_data = join(string(payload(1 : ...
+                                                payload_length, :)), '');
+                                            
+                    neighborly_sensor_information.uuid = transformed_data;
+                    neighborly_sensor_information.time_stamp = obj.time_stamp;
+                    
+                    for s = 1 : length(obj.received_sign_of_life)
+                        if obj.received_sign_of_life{s}.uuid == transformed_data
+                            obj.received_sign_of_life(s) = [];
+                            break;
+                        end
+                    end
+                    
+                    obj.received_sign_of_life{end+1} = ...
+                        neighborly_sensor_information;
+                else
+                    % Prepare the data needed for data extraction from the ...
+                    %payload
+                    neighborly_sensor_information.time_stamp = [0, 0, 0, 0];
+
+                    % Processes the payload from the received data ...
+                    %package to extract the sensor informations formatted as ...
+                    %(relative temperature, relative humidity, ...
+                    %timestamp_day, timestamp_hour, timestamp_minute)
+                    %and then stores them in the sensor list received_data.
+
+                    % Retrieve temperature
+                    transformed_data = join(string(...
+                        payload(1 : 8, :)), '');
+
+                    neighborly_sensor_information.temperature = ...
+                        hex2num(transformed_data);
+
+                    % Retrieve humidity
+                    transformed_data = join(string(payload(...
+                        9 : 16, :)), '');
+
+                    neighborly_sensor_information.humidity = ...
+                        hex2num(transformed_data);
+
+                    % Retrieve timestamp
+                    % Second timestamp (1 byte max)
+                    transformed_data = string(payload(payload_length - 16, :));
+
+                    neighborly_sensor_information.time_stamp(4) = ...
+                        hex2dec(transformed_data);
+                    
+                    % Minute timestamp (1 byte max)
+                    transformed_data = string(payload(payload_length - 17, :));
+
+                    neighborly_sensor_information.time_stamp(3) = ...
+                        hex2dec(transformed_data);
+
+                    % Hour timestamp (1 byte max)
+                    transformed_data = string(payload(payload_length - 18, :));
+
+                    neighborly_sensor_information.time_stamp(2) = ...
+                        hex2dec(transformed_data);
+
+                    % Day timestamp (1 byte max)
+                    transformed_data = join(string(payload(...
+                        17 : payload_length - 19, :)), '');
+
+                    neighborly_sensor_information.time_stamp(1) = ...
+                        hex2dec(transformed_data);
+
+                    % UUID (32 bytes)
+                    transformed_data = join(string(payload(payload_length - 15 : ...
+                                                payload_length, :)), '');
+                    neighborly_sensor_information.uuid = transformed_data;
+
+
+                    obj.received_data{end+1} = neighborly_sensor_information;
+                end
             else
                 % Notify that the decoding failed
                 % Handle this case (todo)
                 fprintf('L2CAP decoding status is: %s\n', leFrameDecodeStatus);
+            end
+        end
+        
+        function send_sign_of_life(obj)
+            % Frame config for LE Frames
+            cfgL2CAP = bleL2CAPFrameConfig('ChannelIdentifier', '0035');
+            
+            % Prepare data to send as a payload
+            uuid_to_share = erase(string(obj.uuid), "-");
+            
+            % Transform into char arrays because it creates a 1x1 string ...
+            %array by default which creates out of boundaries exceptions.
+            complete_payload_string = char(uuid_to_share);
+            
+            % Create the paylaod to be sent (split the payload ...
+            %string into bytes. Length should ALWAYS be even!
+            payload = strings(strlength(complete_payload_string) / 2, 1);
+
+            for byte = 1 : strlength(complete_payload_string) / 2
+                payload(byte) = convertStringsToChars(strcat...
+                                    (complete_payload_string(byte * 2 - 1), ...
+                                    complete_payload_string(byte * 2)));
+            end
+
+            % Convert string array into char array because the BLE ...
+            %library expects a nx2 char array payload
+            payload = char(payload);
+            
+            % Generate LE Frame
+            LE_frame = bleL2CAPFrame(cfgL2CAP, payload);
+            
+            % Collects bluetooth messages for simulation purposes, but ...
+            %in reality it would be processed in parallel.
+            for s = 1 : length(obj.neighborly_sensors)
+                obj.neighborly_sensors{s}.receive_data_package(LE_frame);
+            end
+        end
+                 
+        function check_sign_of_life(obj)
+            indexes_of_missing_sensors = {};
+            
+            % The delay is checked to leave some room for 'lost' ...
+            %connections and network problems. We loop first over ...
+            %the received sign of life because the simulation expects ...
+            %at least one message to be exchanged before sensors break.
+            for rsli = 1 : length(obj.received_sign_of_life)
+                known_sensor_sent_message = false;
+                known_sensor_index = 0;
+                
+                for nbi = 1 : length(obj.neighborly_sensors)
+                    if obj.neighborly_sensors{nbi}.getUuid() == ...
+                            obj.received_sign_of_life{rsli}.uuid
+                        
+                        known_sensor_index = nbi;
+                        
+                        if TimeHelper.findIfTimeStampsAreNotTooMuchApart(...
+                            obj.time_stamp, obj.max_allowed_delay, ...
+                            obj.received_sign_of_life{rsli}.time_stamp)
+                        
+                            known_sensor_sent_message = true;
+                        end
+                    end
+                end
+                
+                if ~known_sensor_sent_message
+                    notification.uuid = ...
+                        obj.neighborly_sensors{known_sensor_index}.getUuid();
+                    notification.location = ...
+                        obj.neighborly_sensors{known_sensor_index}.getLocation();
+                    
+                    Sensor.notify_base_about_dead_sensor(notification);
+                    
+                    obj.neighborly_sensors(known_sensor_index) = [];
+                    
+                    indexes_of_missing_sensors{end+1} = rsli;
+                end
+            end
+            
+            for rsc = 1 : length(indexes_of_missing_sensors)
+                obj.received_sign_of_life(...
+                        indexes_of_missing_sensors{rsc} - (rsc - 1)) = [];
             end
         end
     end
@@ -383,42 +490,6 @@ classdef Sensor < handle
             end 
         end
         
-        function check_dead_neighbors(obj)
-            % Sanity check: do all retrieved messages belong to one time
-            %instant?
-            for d = 1 : length(obj.received_data)
-                if obj.received_data{d}.time_stamp ~= ...
-                        obj.received_data{1}.time_stamp
-                    
-                    error("not all received messages belong to the same time stamp!")
-                end
-            end
-            
-            % Check if we have the same amount of received messages ...
-            %than the amount of known neighbors. If not, then we know ...
-            %we might have a dead neighbor.
-            if length(obj.received_data) ~= length(obj.neighborly_sensors)
-                for nbi = 1 : length(obj.neighborly_sensors)
-                    known_sensor_sent_message = false;
-                    
-                    for rdi = 1 : length(obj.received_data)
-                        if obj.neighborly_sensors{nbi}.getUuid() == ...
-                                obj.received_data{rdi}.uuid
-                            known_sensor_sent_message = true;
-                        end
-                    end
-                    
-                    if ~known_sensor_sent_message
-                        obj.dead_sensors{end+1} = ...
-                            obj.neighborly_sensors{nbi}.getUuid();
-                        
-                        Sensor.notify_base_about_dead_sensor(...
-                            obj.neighborly_sensors{nbi}.getUuid());
-                    end
-                end
-            end
-        end
-        
         function send_data_packages(obj)
             % Frame config for LE Frames
             cfgL2CAP = bleL2CAPFrameConfig('ChannelIdentifier', '0035');
@@ -433,6 +504,7 @@ classdef Sensor < handle
             hex_day = dec2hex(data_package.time_stamp(1));
             hex_hour = dec2hex(data_package.time_stamp(2));
             hex_minute = dec2hex(data_package.time_stamp(3));
+            hex_second = dec2hex(data_package.time_stamp(4));
 
             if mod(length(hex_rel_pos_temp), 2) == 1
                 hex_rel_pos_temp = strcat('0', hex_rel_pos_temp);
@@ -454,12 +526,16 @@ classdef Sensor < handle
                 hex_minute = strcat('0', hex_minute);
             end
             
+            if mod(length(hex_second), 2) == 1
+                hex_second = strcat('0', hex_second);
+            end
+            
             uuid_to_share = erase(string(obj.uuid), "-");
 
             % Concatenate the data
             complete_payload_string = strcat(hex_rel_pos_temp, ...
                         hex_rel_pos_humidity, ...
-                        hex_day, hex_hour, hex_minute, ...
+                        hex_day, hex_hour, hex_minute, hex_second, ...
                         uuid_to_share);
             
             % Transform into char arrays because it creates a 1x1 string ...

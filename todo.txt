@@ -1,15 +1,14 @@
-GROUP TODO|
------------
+GROUP TODO |
+------------
 Detect fire - H
 notify detected fire
 kill fire when notified
-check sign of life - R
-replace dead sensors - R
 include temp, humidity in fire prob
 include relative humidity in fire spread and temperature
 	temperature goes up, then rel hum goes down but if rel hum is high then fire 'burn'/spreads slower
-change dead sensors to be detected after x time not available and not instantly
 do analytics
+add comments ~ descriptions
+harmonize naming convention
 
 ----------
 OPTIONAL |
@@ -18,6 +17,7 @@ update weather variations
 include temp, humidity and wind in fire prob + spread factor
 create network packets decoding problems and handle them
 simulate how the "Main" device gets contacted for notification and how it then contacts the base
+Change neighbors so they can interact between subzones
 
 -------
 NOTES |
@@ -25,3 +25,4 @@ NOTES |
 No-multithreading because data overhead is way bigger than speed gained
 Acces todos: (current folder -> arrow -> reports -> todos)
 In 4.2 and 5.0, a new feature called Data Length Extensions (DLE) allows the ATT Payload to hold up to 244 bytes of data.
+UUID is transfered in measurement notification (is it useful?)

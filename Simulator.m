@@ -12,11 +12,14 @@ classdef Simulator <  handle
                        %due to plane speed and fall.
         
         % Variables for random scatter
-        amount_of_sensors_per_100_square_meters = 3;
+        amount_of_sensors_per_100_square_meters = 2;
         
         % Expected maximum length for a properly working bluetooth ...
         %transmission in meters.
         maximum_bluetooth_range = 10;
+        
+        % Rate at which the sensors sign of life is sent
+        sign_of_life_rate = 1; % in minutes
     end
     
     properties (Access = private)
@@ -106,7 +109,7 @@ classdef Simulator <  handle
                     % Assign neighbors to each sensor to simulate the ...
                     %Bluetooth communication through a subscription ...
                     %pattern.
-                    obj.assignNeighborlySensors();
+                    obj.assignNeighborsForAllSensors();
                 else
                     error('Provided zone image does not exist in current folder')
                 end
@@ -138,7 +141,7 @@ classdef Simulator <  handle
                     end
                     
                     % Update simulation respectively to sensing rate
-                    for step = 1 : obj.sensing_rate : 60
+                    for tick = 1 : obj.sensing_rate : 60
                         % Update fires
                         obj.updateFires();
                         
@@ -153,18 +156,18 @@ classdef Simulator <  handle
                             % Simulate sensor action (aka update)
                             obj.updateSensors(sz, hourly_temperature(sz), ...
                                               hourly_humidity(sz), day, hour, ...
-                                              step);
-                            
+                                              tick);
+
                             % Simulate random technical problem preventing ...
-                            %sensor from working any longer.
-                            if rand() <= 0.05
+                            %sensor from working any longer. (TODO)
+                            if rand() <= 0.0005
                                 obj.sensorDefect(sz);
                             end            
 
                             % Updates GUI
                             if obj.visualizer_state
                                 obj.visualizer.updateGUI(obj.fires, ...
-                                                     {day, hour, step});
+                                                     {day, hour, fix(tick), mod(tick, 1) * 60});
                             end
                         end
                         
@@ -173,6 +176,16 @@ classdef Simulator <  handle
 
                         obj.fires_at_tick_t{end+1} = ...
                             obj.fires;
+                        
+                        % Replace dead sensors which got notified ...
+                        %to the main base (cannot be slower/faster ...
+                        %than sign of life rate).
+                        if mod(tick, obj.sign_of_life_rate) == 0
+                            bs = BaseStation.getInstance();
+                            sensors_info = bs.get_sensors_to_replace();
+                            obj.findAndReplaceSensors(sensors_info, ...
+                                                        day, hour, tick);
+                        end
                     end    
                 end
             end
@@ -572,7 +585,7 @@ classdef Simulator <  handle
             end
         end 
         
-        function assignNeighborlySensors(obj)
+        function assignNeighborsForAllSensors(obj)
             for sz = 1 : length(obj.subzones_variances)
                 subzone_sensors = obj.sensors_per_subzone(sz, :);
                 
@@ -592,6 +605,7 @@ classdef Simulator <  handle
 
                 for s = 1 : amount_of_active_sensors_in_subzone
                     sensor = subzone_sensors{s};
+                    
                     for ns = 1 : amount_of_active_sensors_in_subzone
                         if s ~= ns
                             potential_neighbor_sensor = subzone_sensors{ns};
@@ -609,6 +623,44 @@ classdef Simulator <  handle
                                 sensor.addNeighbor(potential_neighbor_sensor);
                             end
                         end
+                    end
+                end
+            end
+        end
+        
+        function assignNeighborsForGivenSensor(obj, sz_num, sensor)
+            subzone_sensors = obj.sensors_per_subzone(sz_num, :);
+                
+            if ~isempty(find(cellfun('isempty', ...
+                                 subzone_sensors), 1))
+
+            empty_cell_index = find(cellfun(...
+                                        'isempty', subzone_sensors), ...
+                                    1);
+
+            amount_of_active_sensors_in_subzone = ...
+                empty_cell_index - 1;
+            else
+            amount_of_active_sensors_in_subzone = ...
+                length(subzone_sensors);
+            end
+
+            for ns = 1 : amount_of_active_sensors_in_subzone
+                if sensor.getUuid() ~= subzone_sensors{ns}.getUuid()
+                    potential_neighbor_sensor = subzone_sensors{ns};
+
+                    % Check if the potential neighbor is in ...
+                    %communication range.
+                    if GeometryHelper.isPointInsideCircle(...
+                            sensor.getLocation(), ...
+                            obj.maximum_bluetooth_range, ...
+                            potential_neighbor_sensor.getLocation())
+
+                        % Since in theory it is in range, we ...
+                        %consider it as a neighbor to simulate ...
+                        %the bluetooth communication.
+                        sensor.addNeighbor(potential_neighbor_sensor);
+                        potential_neighbor_sensor.addNeighbor(sensor);
                     end
                 end
             end
@@ -705,6 +757,14 @@ classdef Simulator <  handle
                     
                     sensor.update(sensor_area_temperature, humidity, ...
                                   day, hour, tick);
+                              
+                    % Used to make sure the sensors send a sign of life ...
+                    %at the expected rate which may differ from sensing ...
+                    %rate.
+                    if mod(tick, obj.sign_of_life_rate) == 0
+                        sensor.send_sign_of_life();
+                        sensor.check_sign_of_life();
+                    end   
                 end
             end
         end
@@ -731,14 +791,100 @@ classdef Simulator <  handle
                         length(subzone_sensors);
                 end
                 
-                sensor = obj.sensors_per_subzone{sz_num, amount_of_active_sensors_in_subzone};
-               
+                sensor = obj.sensors_per_subzone{sz_num, ...
+                                amount_of_active_sensors_in_subzone};
+                
+                % Remove sensor from gui
                 if obj.visualizer_state
                     obj.visualizer.removeSensor(sensor);
                 end
                 
-                obj.sensors_per_subzone{sz_num, amount_of_active_sensors_in_subzone}(1) = [];
+                % Remove sesor from simulator list
+                obj.sensors_per_subzone{sz_num, ...
+                        amount_of_active_sensors_in_subzone}(1) = [];
             end
+        end
+        
+        function findAndReplaceSensors(obj, sensors_info, day, hour, tick)
+            for sii = 1 : length(sensors_info)
+                [starting_subzones_temperature, ...
+                     starting_subzones_humidity] = obj.initSubzonesData();
+                
+                for sz = 1 : obj.amount_of_subzones
+                    start_x = ...
+                       obj.subzones_min_and_max_coordinates{sz}{1}{1};
+                    finish_x = ...
+                       obj.subzones_min_and_max_coordinates{sz}{2}{1};
+                    start_y = ...
+                       obj.subzones_min_and_max_coordinates{sz}{1}{2};
+                    finish_y = ...
+                       obj.subzones_min_and_max_coordinates{sz}{2}{2};
+
+                    location = sensors_info{sii};
+
+                    if location(1) >= round(start_x) && ...
+                           location(1) <= round(finish_x) && ...
+                           location(2) >= round(start_y) && ...
+                           location(2) <= round(finish_y)
+                       
+                       % Only way to create a do while loop in matlab :')
+                       while 1
+                           new_x = randi(...
+                            [round(location(1) - obj.variance / 2), ...
+                            round(location(1) + obj.variance / 2)],1);
+
+                           new_y = randi(...
+                            [round(location(2) - obj.variance / 2), ...
+                            round(location(2) + obj.variance / 2)],1);
+
+                           if new_x >= round(start_x) && ...
+                               new_x <= round(finish_x) && ...
+                               new_y >= round(start_y) && ...
+                               new_y <= round(finish_y)
+                           
+                              break;
+                           end
+                       end
+
+                       new_location = [new_x, new_y];
+                       
+                       generated_sensor = Sensor(new_location, ...
+                               starting_subzones_temperature(sz), ...
+                               starting_subzones_humidity(sz) / 100);
+                           
+                       % Find which active sensors are in the subzone
+                       subzone_sensors = obj.sensors_per_subzone(sz, :);
+                
+                       if ~isempty(find(cellfun('isempty', ...
+                                        subzone_sensors), 1))
+                                     
+                           empty_cell_index = find(cellfun('isempty', ...
+                                        subzone_sensors), 1);
+                                        
+                           amount_of_active_sensors_in_subzone = ...
+                               empty_cell_index - 1;
+                       else
+                           amount_of_active_sensors_in_subzone = ...
+                               length(subzone_sensors);
+                       end
+                       
+                       obj.assignNeighborsForGivenSensor(sz, ...
+                                generated_sensor);
+                            
+                       generated_sensor.setTimeStamp(day, hour, tick);
+
+                       obj.sensors_per_subzone{sz, ...
+                                amount_of_active_sensors_in_subzone + 1} ...
+                                    = generated_sensor;
+                                
+                       if obj.visualizer_state
+                           obj.visualizer.spawnSensor(generated_sensor);
+                       end
+
+                       break;
+                   end
+               end
+           end
         end
     end
 end

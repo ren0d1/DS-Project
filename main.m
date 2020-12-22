@@ -1,4 +1,4 @@
-%clear all; % clear all variables from memory
+clear all; % clear all variables from memory (needed for singleton to work properly)
 clc; % clear command window
 
 % Configuration properties
@@ -42,5 +42,11 @@ s = Simulator(zones_weather_file, zone_image, zone_width, zone_height, ...
                 starting_day, plane_mode);
 [sensors_history, fires_history] = s.simulation();
 
-a = Analyzer(sensors_history, fires_history);
-tbd = a.analyze();
+% Save simulation history
+file_name = strcat('simulation-', strrep(datestr(datetime('now')), ':', '-'), '.mat');
+save(file_name, 'sensors_history', 'fires_history');
+
+%load('simulation-22-Dec-2020 15-49-15.mat', 'sensors_history', 'fires_history');
+
+%a = Analyzer(sensors_history, fires_history);
+%tbd = a.analyze();
