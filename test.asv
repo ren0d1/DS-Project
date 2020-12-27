@@ -1,15 +1,5 @@
-location = [0 0];
-radius = 1;
-radius_increase = 0.5;
-big_fire = Fire(location, radius, radius_increase);
 
-big_fire.origin
+location = [ 
 
-big_fire.radius
+%fire_s = Fire(
 
-big_fire.temperature
-
-big_fire.radius_increase
-
-
-big_fire.

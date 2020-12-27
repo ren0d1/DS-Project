@@ -24,7 +24,7 @@ classdef Fire < handle
         
         % Additional radius, on top of the fire radius, which denotes ...
         %the influence of the fire on the temperature
-        add_temperature_radius = 30; %[m]
+        add_temperature_radius = 10; %[m]
         
         % Total radius, i.e the radius of the fire and add_temp_radius
         radius_influence; %[m]
@@ -32,6 +32,8 @@ classdef Fire < handle
         height; %[m]
         %temperature of the fire
         temperature;
+        
+        time_alive = 0;
     end
     
     properties (Constant) 
@@ -41,6 +43,7 @@ classdef Fire < handle
         % Parameter which denotes how the fire influences the temperature ...
         %in its environment proportionally to its size.
         %fire_temperature_influence = 1.5;
+        
     end
     
     methods
@@ -48,14 +51,23 @@ classdef Fire < handle
             %FIRE Construct an instance of this class
             %   Detailed explanation goes here
             obj.origin = origin;
+            
             obj.radius = radius;
+            
+            
+            
             obj.radius_increase = radius_increase;
             
             %each fire is initialized with a height of 0.5 meters
             obj.height = 0.5; 
             
             obj.temperature = 334-258 * log(0.5 / obj.height);
-            %obj.add_temperature_radius = obj.fire_temperature_influence * obj.radius;
+            
+            
+            % the influence of the temperature on its environment, measured
+            % from the firefront
+            obj.add_temperature_radius = 10; %[m]
+            
             obj.radius_influence = obj.radius + obj.add_temperature_radius;
        
         end
@@ -65,36 +77,29 @@ classdef Fire < handle
             %Aspects of fire behaviour. Research Report No.20" (PDF). 
             % The fire spread is modelled with a maximum speed of 10.8km/h, ...
             %uniformely distributed and called every minute.
-            
-            %wrong, increases fire spread exponentially
-            %obj.radius_increase = rand() * 180 * time_factor; %10.8km/h = 180m/min
-            
-            
-            
-            
+
             
             %change the height of the fire and radius increase 
-            
-            if time_factor < 10
+            if obj.time_alive < 10
                 
                 %max height of 2.3 metres in the first 10 minutes
                 obj.height = 0.3 + rand() * 2;
                 
-                obj.radius_increase = rand() * 180 / 10; %10.8km/h = 180m/min
+                obj.radius_increase = (rand() * 180 / 10) * time_factor; %10.8km/h = 180m/min
             
-            elseif time_factor <30
+            elseif obj.time_alive <30
                 
                 %max height of 2.3 metres in the first 10 minutes
                 obj.height = 1 + rand() * 4;
                 
-                obj.radius_increase = rand() * 180 / 5; %10.8km/h = 180m/min
+                obj.radius_increase = (rand() * 180 / 5)* time_factor ; %10.8km/h = 180m/min
                 
             else
                 
                 %max height of 2.3 metres in the first 10 minutes
                 obj.height = 5 + rand() * 6;
                 
-                obj.radius_increase = rand() * 180; %10.8km/h = 180m/min
+                obj.radius_increase = (rand() * 180) * time_factor; %10.8km/h = 180m/min
                 
             end                 
             
@@ -105,6 +110,8 @@ classdef Fire < handle
             
             %obj.add_temperature_radius = obj.fire_temperature_influence * obj.radius;
             obj.radius_influence = obj.radius + obj.add_temperature_radius;
+            
+            obj.time_alive = obj.time_alive + 1;
             
         end
         
@@ -125,20 +132,20 @@ classdef Fire < handle
                                                      environment_temperature)
                                                  
               distance = norm(sensor_location - obj.origin);
-
-              if distance > obj.radius_influence
-
-                  temperature_increase = 0;
+%                 
+%               if distance > obj.radius_influence
+% 
+%                   temperature_increase = 0;
+%                   
+%               elseif distance <= obj.radius
+%                       
+%                   temperature_increase = max([obj.temperature - environment_temperature, 0]);
+%       
+%               else
                   
-              elseif distance <= obj.radius
-                      
-                  temperature_increase = obj.temperature - environment_temperature;
+              temperature_increase = obj.temperature * (1- ((distance - obj.radius) / obj.add_temperature_radius));
               
-              else
-                  
-                  temperature_increase = obj.temperature * (1- (distance / obj.add_temperature_radius));
-              
-              end
+              %end
                                    
            
 %             % Computes the temperature increase for a sensor with a given ...
