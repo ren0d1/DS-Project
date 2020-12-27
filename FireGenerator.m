@@ -43,9 +43,9 @@ classdef FireGenerator < handle
         
         function updateFireProbability(obj, current_temperature, current_humidity, current_wind)
             
-            humidity_parameter = obj.humidity_influence * ( 1 - ((current_humidity - obj.min_humidity) / (obj.max_humidity - obj.min_humidity)))
+            humidity_parameter = obj.humidity_influence * ( 1 - ((current_humidity - obj.min_humidity) / (obj.max_humidity - obj.min_humidity)));
             
-            temperature_parameter = obj.temperature_influence * ((current_temperature - obj.min_temperature) / (obj.max_temperature - obj.min_temperature))
+            temperature_parameter = obj.temperature_influence * ((current_temperature - obj.min_temperature) / (obj.max_temperature - obj.min_temperature));
             
             fire_prob = (humidity_parameter + temperature_parameter) * obj.max_fire_prob;
             
