@@ -641,16 +641,20 @@ classdef Simulator <  handle
                 amount_of_fires_created = randi(3); % (up to 3 fires) 
                 
                 for f = 1 : amount_of_fires_created
+                    
                     start_x = obj.subzones_min_and_max_coordinates{sz_num}{1}{1};
+                    
                     finish_x = obj.subzones_min_and_max_coordinates{sz_num}{2}{1};
+                    
                     start_y = obj.subzones_min_and_max_coordinates{sz_num}{1}{2};
+                    
                     finish_y = obj.subzones_min_and_max_coordinates{sz_num}{2}{2};
 
                     % Generate random location within subzone
                     origin = [randi([round(start_x), round(finish_x)],1), ...
                               randi([round(start_y), round(finish_y)],1)];
 
-                    generated_fire = obj.fire_generator.generateFire(origin);
+                    generated_fire = obj.fire_generator.generateFire(origin, sz_num);
 
                     obj.fires{end + 1} = generated_fire;
                 end

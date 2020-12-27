@@ -29,7 +29,8 @@ classdef Fire < handle
         % Total radius, i.e the radius of the fire and add_temp_radius
         radius_influence; %[m]
         %the height of the fire.
-        height; %[m]
+        %each fire is initialized with a height of 0.5 meters
+        height = 0.5; %[m]
         %temperature of the fire
         temperature;
         
@@ -47,6 +48,7 @@ classdef Fire < handle
     end
     
     methods
+        
         function obj = Fire(origin, radius, radius_increase)
             %FIRE Construct an instance of this class
             %   Detailed explanation goes here
@@ -58,9 +60,7 @@ classdef Fire < handle
             
             obj.radius_increase = radius_increase;
             
-            %each fire is initialized with a height of 0.5 meters
-            obj.height = 0.5; 
-            
+         
             obj.temperature = 334-258 * log(0.5 / obj.height);
             
             
@@ -83,7 +83,7 @@ classdef Fire < handle
             if obj.time_alive < 10
                 
                 %max height of 2.3 metres in the first 10 minutes
-                obj.height = 0.3 + rand() * 2;
+                obj.height = 0.5 + rand() * 1.8;
                 
                 obj.radius_increase = (rand() * 180 / 10) * time_factor; %10.8km/h = 180m/min
             
@@ -132,20 +132,20 @@ classdef Fire < handle
                                                      environment_temperature)
                                                  
               distance = norm(sensor_location - obj.origin);
-%                 
-%               if distance > obj.radius_influence
-% 
-%                   temperature_increase = 0;
-%                   
-%               elseif distance <= obj.radius
-%                       
-%                   temperature_increase = max([obj.temperature - environment_temperature, 0]);
-%       
-%               else
+                
+              if distance > obj.radius_influence
+
+                  temperature_increase = 0;
                   
-              temperature_increase = obj.temperature * (1- ((distance - obj.radius) / obj.add_temperature_radius));
+              elseif distance <= obj.radius
+                      
+                  temperature_increase = max([obj.temperature - environment_temperature, 0]);
+      
+              else
+                  
+                temperature_increase = (obj.temperature - environment_temperature) * (1- ((distance - obj.radius) / obj.add_temperature_radius));
               
-              %end
+              end
                                    
            
 %             % Computes the temperature increase for a sensor with a given ...
