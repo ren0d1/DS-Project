@@ -35,6 +35,14 @@ classdef Fire < handle
         temperature;
         
         time_alive = 0;
+        
+        %subzone to which the fire origin "belongs"
+        sz_num;
+        
+        %denotes the wind at each time instance
+        local_wind;
+        %denotes the humidity at each time instance
+        local_humiditiy;
     end
     
     properties (Constant) 
@@ -45,22 +53,37 @@ classdef Fire < handle
         %in its environment proportionally to its size.
         %fire_temperature_influence = 1.5;
         
+        %based on the newcastle weather data, humidity has a high
+        %correlation to the 'fire season', while wind is almost constant
+        %over the whole year, ranging from 6.9 to 8.2 hours. 
+        %source: https://weatherspark.com/y/144563/Average-Weather-in-Newcastle-Australia-Year-Round
+        
+        %Thus, we put the humidity influence relatively high.
+        
+        humidity_influence = 0.4;
+        
     end
     
     methods
         
-        function obj = Fire(origin, radius, radius_increase)
+        
+        
+        
+        function obj = Fire(origin, radius, radius_increase, sz_num, temperature, humidity, wind)
             %FIRE Construct an instance of this class
             %   Detailed explanation goes here
             obj.origin = origin;
             
             obj.radius = radius;
             
-            
+            obj.sz_num = sz_num;
             
             obj.radius_increase = radius_increase;
             
-         
+            obj.local_humiditiy = humidity;
+            
+            obj.local_wind = wind;
+            
             obj.temperature = 334-258 * log(0.5 / obj.height);
             
             
@@ -72,6 +95,17 @@ classdef Fire < handle
        
         end
         
+        function updateWeather(obj, wind, humidity)
+            
+            obj.local_wind = wind;
+            
+            obj.local_humiditiy = humidity;
+           
+            
+        end    
+        
+        
+        
         function increaseArea(obj, time_factor)
             % Spread rate fire according to "Otways Fire No. 22 – 1982/83 ...
             %Aspects of fire behaviour. Research Report No.20" (PDF). 
@@ -79,27 +113,32 @@ classdef Fire < handle
             %uniformely distributed and called every minute.
 
             
+            parameter_humidity = (1 - obj.local_humiditiy) * obj.humidity_influence;
+            
+            %according to the official weather data, 8.2 miles per hour is
+            %the max wind speed. source: https://weatherspark.com/y/144563/Average-Weather-in-Newcastle-Australia-Year-Round
+            
+            parameter_wind = (obj.local_wind / 8.2) * (1 - obj.humidity_influence);
+            
+    
+            obj.radius_increase = (parameter_wind + parameter_humidity) * 180 * time_factor ; %10.8km/h = 180m/min
+            
+            
             %change the height of the fire and radius increase 
             if obj.time_alive < 10
                 
                 %max height of 2.3 metres in the first 10 minutes
                 obj.height = 0.5 + rand() * 1.8;
                 
-                obj.radius_increase = (rand() * 180 / 10) * time_factor; %10.8km/h = 180m/min
-            
             elseif obj.time_alive <30
                 
                 %max height of 2.3 metres in the first 10 minutes
                 obj.height = 1 + rand() * 4;
                 
-                obj.radius_increase = (rand() * 180 / 5)* time_factor ; %10.8km/h = 180m/min
-                
             else
                 
                 %max height of 2.3 metres in the first 10 minutes
                 obj.height = 5 + rand() * 6;
-                
-                obj.radius_increase = (rand() * 180) * time_factor; %10.8km/h = 180m/min
                 
             end                 
             

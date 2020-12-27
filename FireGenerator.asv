@@ -56,9 +56,7 @@ classdef FireGenerator < handle
                 
             else
                 
-                obj.fireProbability = fire_prob;
-                
-            end
+            obj.fireProbability = max(fire_prob, obj.max_fire_prob);
         end
         
         function generated_fire = generateFire(location, sz_num, temperature, humidity, wind)

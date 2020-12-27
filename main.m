@@ -21,7 +21,9 @@ clc; % clear command window
 zones_weather_file = "newcastle_australia_weather_data.dat";
 years = 1; % amount of years available in the datafile
 %subzones_variances = [-1, 3; 5, 2; -3, 5];
-subzones_variances = [-1, 3; 5, 2]; % temperature_variance, humidity_variance 
+subzones_variances = [-1, 3, 1;...
+                    5, 2, 1]; % temperature_variance, humidity_variance, wind_variance. 
+                              % each row corresponds to one subzone. 
 
 zone_image = "sub_area_of_interest";
 %zone_width = 20000; %m

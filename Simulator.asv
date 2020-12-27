@@ -722,23 +722,16 @@ classdef Simulator <  handle
                     
                     sensor_area_temperature = temperature;
                     
-                    % The logic is, that the biggest temperature increase
-                    % of one sensor is given by the fire with the highest
-                    % temperature influence based on our model
-                    % calculations.
+                    % Add humidity impact of fire (todo)
                     
                     temperature_increase = 0;
                     for f = 1 : length(obj.fires)
-                        
+                        %need to be changed?
                         temperature_increase_fire = ...
                             obj.fires{f}.getTemperatureIncreaseAtLocation(...
                                 sensor.getLocation(), temperature);
                             
-                        if temperature_increase_fire > temperature_increase
-                           
-                            temperature_increase = temperature_increase_fire;
-                            
-                        end
+                        if temperature_incre
                     end
                     
                     sensor_area_temperature = sensor_area_temperature + ...
