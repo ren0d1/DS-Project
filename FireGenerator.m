@@ -32,6 +32,7 @@ classdef FireGenerator < handle
             fire_probability = obj.fireProbability;
         end
         
+ 
         function updateFireProbability(obj, current_temperature, current_humidity, current_wind)
             % Reasoning: humidity parameter is max if current_humidty =
             %min_humidity, which is the annualy minimum of the weather data
