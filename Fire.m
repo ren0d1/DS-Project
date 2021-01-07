@@ -37,25 +37,35 @@ classdef Fire < handle
         
         % Denotes the humidity at each time instance
         local_humidity;
+        
+        %Denotes the temperature of the environment, NOT the fire itself.
+        local_temperature;
     end
     
     properties (Constant) 
         % Parameter which denotes how the fire influences the temperature ...
         %in its environment proportionally to its size.
         %fire_temperature_influence = 1.5;
+        %both parameters are set to have an equal influence.
+        humidity_influence = 0.33;
         
+        wind_influence = 0.33;
         
-        % Based on the newcastle weather data, humidity has a high ...
-        %correlation to the 'fire season', while wind is almost constant ...
-        %over the whole year, ranging from 6.9 to 8.2 hours. 
-        % Source: https://weatherspark.com/y/144563/Average-Weather-in-Newcastle-Australia-Year-Round
-        % Thus, we put the humidity influence relatively high.
-        humidity_influence = 0.4;
+        temperature_influence = 0.33;
+        % According to the weather data, the max relative humidity is ...
+            %92%. min is 0.%.
+        max_humidity = 92;
+        
+        min_humidity = 0;
+        
+        max_temperature = 43.6;
+        min_temperature = -4.6;
+        
     end
     
     methods
         function obj = Fire(origin, sz_num, radius, radius_increase, ...
-                                humidity, wind)
+                                humidity, wind, temperature)
             %FIRE Construct an instance of this class
             %   Detailed explanation goes here
             obj.origin = origin;
@@ -66,6 +76,9 @@ classdef Fire < handle
             
             obj.local_humidity = humidity;
             obj.local_wind = wind;
+            
+            obj.local_temperature = temperature;
+            
             obj.temperature = 334-258 * log(0.5 / obj.height);
             
             % The influence of the temperature on its environment, ...
@@ -76,11 +89,71 @@ classdef Fire < handle
             obj.radius_influence = obj.radius + obj.add_temperature_radius;
         end
         
-        function updateWeather(obj, wind, humidity)
+        function updateWeather(obj, wind, humidity, temperature)
            obj.local_wind = wind;
            obj.local_humidity = humidity;
+           obj.local_temperature = temperature;
         end
         
+        function wind_parameter = retrieve_windpar(wind)
+            
+            if wind < 2
+                
+                wind_parameter = 0;
+            
+            elseif wind <= 5
+                
+                wind_parameter = 0.2;
+                
+            elseif wind <= 11
+                
+                wind_parameter = 0.4;
+                
+            elseif wind <= 19
+                
+                wind_parameter = 0.6;
+                
+            elseif wind <= 28
+                
+                wind_parameter = 0.8;
+                
+            elseif wind <= 38
+                
+                wind_parameter = 1.0;
+                
+            elseif wind <= 49
+                
+                wind_parameter = 0.86;
+                
+            elseif wind <= 61
+                
+                wind_parameter = 0.71;
+                
+            elseif wind <= 74
+                
+                wind_parameter = 0.57;
+                
+            elseif wind <= 88
+                
+                wind_parameter = 0.43;
+                
+            elseif wind <= 102 
+                
+                wind_parameter = 0.29;
+                
+            elseif wind <= 117
+                
+                wind_parameter = 0.14;
+                
+            else
+                
+                wind_parameter = 0;
+                
+            end
+            
+        end
+        
+                
         function increaseArea(obj, time_factor)
             % Spread rate fire according to "Otways Fire No. 22 – 1982/83 ...
             %Aspects of fire behaviour. Research Report No.20" (PDF).
@@ -88,16 +161,25 @@ classdef Fire < handle
             % According to the official weather data, 104km per hour ...
             %is the max wind speed. 
             % Source: https://weatherspark.com/y/144563/Average-Weather-in-Newcastle-Australia-Year-Round
-            parameter_wind = (obj.local_wind / 104) * (1 - obj.humidity_influence);
+            wind_par = retrieve_windpar(obj.local_wind);
+    
+      
+          
+            humidity_par =  1- (obj.local_humidity - obj.min_humidity) / ...
+                            (obj.max_humidity - obj.min_humidity);                     
+                                
+            temperature_par = (obj.local_temperature - obj.min_temperature) / ...
+                               (obj.max_temperature - obj.min_temperature);
             
-            % According to the weather data, the max relative humidity is ...
-            %92%.
-            parameter_humidity = (0.92 - obj.local_humidity) * ...
-                                    obj.humidity_influence;
             
+            increase_factor = wind_par * obj.wind_influence + ...
+                              humidity_par * obj.humidity_influence + ...
+                              temperature_par * obj.temperature_influence;
+                          
+                          
             % The fire spread is modelled with a maximum speed of 10.8km/h, ...
             %uniformely distributed and called every minute.
-            obj.radius_increase = (parameter_wind + parameter_humidity) * ...
+            obj.radius_increase = increase_factor * ...
                                     180 * time_factor ; %10.8km/h = 180m/min
                                 
             % Change the height of the fire and radius increase 

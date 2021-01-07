@@ -33,7 +33,7 @@ classdef FireGenerator < handle
             fire_probability = obj.fireProbability;
         end
         
-        function wind_parameter = retrieve_windpar(wind):
+        function wind_parameter = retrieve_windpar(wind)
             
             if wind < 2
                 
@@ -101,7 +101,8 @@ classdef FireGenerator < handle
             
             
             wind_parameter = retrieve_windpar(current_wind);
-  
+            
+            %Humidity is scaled to %, thats why its divided by 100
             humidity_parameter = 1 - ((current_humidity - obj.min_humidity) / ...
                        (obj.max_humidity - obj.min_humidity));
             
@@ -121,12 +122,12 @@ classdef FireGenerator < handle
         end
         
         function generated_fire = generateFire(~, location, sz_num, ...
-                                                humidity, wind)
+                                                humidity, wind, temperature)
             radius = randi([1, 5],1);
             radius_increase = radius;
             %radius = 1;
             generated_fire = Fire(location, sz_num, radius, radius_increase, ...
-                                    humidity, wind);
+                                    humidity, wind, temperature);
         end
     end
 end

@@ -147,7 +147,7 @@ classdef Simulator <  handle
                     % Update simulation respectively to sensing rate
                     for tick = 1 : obj.sensing_rate : 60
                         % Update fires
-                        obj.updateFires(hourly_wind, hourly_humidity);
+                        obj.updateFires(hourly_wind, hourly_humidity, hourly_temperature);
                         
                         % Add slight changes for environmental data ...
                         %throughout the sensing part (todo)
@@ -688,7 +688,7 @@ classdef Simulator <  handle
             end
         end
         
-        function updateFires(obj, hourly_wind, hourly_humidity)
+        function updateFires(obj, hourly_wind, hourly_humidity, hourly_temperature)
             fires_to_remove = {};
             
             for f = 1 : length(obj.fires)
@@ -696,7 +696,8 @@ classdef Simulator <  handle
                 
                 fire_sz = fire.getSubZone();
                 fire.updateWeather(hourly_wind(fire_sz), ...
-                    hourly_humidity(fire_sz))
+                    hourly_humidity(fire_sz),...
+                    hourly_temperature(fire_sz));
                 
                 fire.increaseArea(obj.sensing_rate);
 
@@ -738,7 +739,7 @@ classdef Simulator <  handle
                               randi([round(start_y), round(finish_y)],1)];
 
                     generated_fire = obj.fire_generator.generateFire(...
-                            origin, sz_num, humidity, wind);
+                            origin, sz_num, humidity, wind, temperature);
 
                     obj.fires{end + 1} = generated_fire;
                 end
