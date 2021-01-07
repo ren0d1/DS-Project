@@ -3,7 +3,7 @@ classdef BaseStation < handle
     %   Detailed explanation goes here
     
     properties (Access = private)
-        fires_info;
+        location_of_sensors_which_detected_fire;
         dead_sensors_info;
         dead_sensors_needing_replacement;
     end
@@ -32,7 +32,7 @@ classdef BaseStation < handle
         function listen_for_alert(obj, alert_type, information)
             switch alert_type
                case 1
-                  obj.fires_info{end+1} = information;
+                  obj.location_of_sensors_which_detected_fire{end+1} = information;
                case 2
                   dead_sensor_already_known = false;
                   
@@ -56,6 +56,15 @@ classdef BaseStation < handle
         function sensors_info = get_sensors_to_replace(obj)
             sensors_info = obj.dead_sensors_needing_replacement;
             obj.dead_sensors_needing_replacement = {};
+        end
+        
+        function location_of_sensors_which_detected_fire = ...
+                    get_location_of_sensors_which_detected_fire(obj)
+                
+            location_of_sensors_which_detected_fire = ...
+                obj.location_of_sensors_which_detected_fire;
+            
+            obj.location_of_sensors_which_detected_fire = {};
         end
     end
 end

@@ -93,8 +93,8 @@ classdef Sensor < handle
     end
     
     methods (Static)
-        function notify_base_about_fire(fire)
-            Sensor.base_station.listen_for_alert(1, fire);
+        function notify_base_about_fire(info)
+            Sensor.base_station.listen_for_alert(1, info);
         end 
         
         function notify_base_about_dead_sensor(sensor_info)
@@ -555,8 +555,7 @@ classdef Sensor < handle
             obj.outlier_detections{end + 1} = outlier_detection;
             
             if obj.fire_detected_local
-                % What info do we need to send? Sensor location?
-                %obj.notify_base_about_fire(info); 
+                obj.notify_base_about_fire(obj.location); 
             end
         end
         

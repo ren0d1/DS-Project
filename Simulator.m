@@ -166,7 +166,10 @@ classdef Simulator <  handle
                             %sensor from working any longer. (TODO)
                             if rand() <= 0.0005
                                 obj.sensorDefect(sz);
-                            end            
+                            end
+                            
+                            % Check if sensors are destroyed due to fires
+                            obj.checkSensorsBrokenByFire(sz);
 
                             % Updates GUI
                             if obj.visualizer_state
@@ -188,9 +191,15 @@ classdef Simulator <  handle
                         %than sign of life rate).
                         if mod(tick, obj.sign_of_life_rate) == 0
                             bs = BaseStation.getInstance();
+                            
                             sensors_info = bs.get_sensors_to_replace();
                             obj.findAndReplaceSensors(sensors_info, ...
                                                         day, hour, tick);
+                                                    
+                            location_of_sensors_which_detected_fire = ...
+                                bs.get_location_of_sensors_which_detected_fire();
+                            obj.findAndExtinguishFires(...
+                                    location_of_sensors_which_detected_fire);
                         end
                     end    
                 end
@@ -656,15 +665,15 @@ classdef Simulator <  handle
             if ~isempty(find(cellfun('isempty', ...
                                  subzone_sensors), 1))
 
-            empty_cell_index = find(cellfun(...
-                                        'isempty', subzone_sensors), ...
-                                    1);
+                empty_cell_index = find(cellfun(...
+                                            'isempty', subzone_sensors), ...
+                                        1);
 
-            amount_of_active_sensors_in_subzone = ...
-                empty_cell_index - 1;
+                amount_of_active_sensors_in_subzone = ...
+                    empty_cell_index - 1;
             else
-            amount_of_active_sensors_in_subzone = ...
-                length(subzone_sensors);
+                amount_of_active_sensors_in_subzone = ...
+                    length(subzone_sensors);
             end
 
             for ns = 1 : amount_of_active_sensors_in_subzone
@@ -688,9 +697,7 @@ classdef Simulator <  handle
             end
         end
         
-        function updateFires(obj, hourly_wind, hourly_humidity)
-            fires_to_remove = {};
-            
+        function updateFires(obj, hourly_wind, hourly_humidity)            
             for f = 1 : length(obj.fires)
                 fire = obj.fires{f};
                 
@@ -699,21 +706,6 @@ classdef Simulator <  handle
                     hourly_humidity(fire_sz))
                 
                 fire.increaseArea(obj.sensing_rate);
-
-                % Check detected fires and kill them (todo)
-                if fire.getRadius() > 5
-                    fires_to_remove{end+1} = f;
-                end
-            end
-            
-            for f = length(fires_to_remove): -1 : 1
-                fire = obj.fires{fires_to_remove{f}};
-               
-                if obj.visualizer_state
-                    obj.visualizer.removeFire(fire);
-                end
-               
-                obj.fires(fires_to_remove{f}) = []; 
             end
         end
         
@@ -748,7 +740,7 @@ classdef Simulator <  handle
         function updateSensors(obj, sz_num, temperature, humidity, ...
                                day, hour, tick)
             % Check if there are any active sensor in the subzone
-            if ~isempty(obj.sensors_per_subzone) && ...
+            if ~isempty(obj.sensors_per_subzone{1}) && ...
                     size(obj.sensors_per_subzone, 1) >= sz_num
                 
                 % Find which active sensors are in the subzone
@@ -800,7 +792,7 @@ classdef Simulator <  handle
         
         function sensorDefect(obj, sz_num)
             % Check if there are any active sensor in the subzone
-            if ~isempty(obj.sensors_per_subzone) && ...
+            if ~isempty(obj.sensors_per_subzone{1}) && ...
                     size(obj.sensors_per_subzone, 1) >= sz_num
                 
                 % Find which active sensors are in the subzone
@@ -828,9 +820,57 @@ classdef Simulator <  handle
                     obj.visualizer.removeSensor(sensor);
                 end
                 
-                % Remove sesor from simulator list
+                % Remove sensor from simulator list
                 obj.sensors_per_subzone{sz_num, ...
                         amount_of_active_sensors_in_subzone}(1) = [];
+            end
+        end
+        
+        function checkSensorsBrokenByFire(obj, sz_num)
+            % Check if there are any active sensor in the subzone
+            if ~isempty(obj.sensors_per_subzone{1}) && ...
+                    size(obj.sensors_per_subzone, 1) >= sz_num
+                
+                % Find which active sensors are in the subzone
+                subzone_sensors = obj.sensors_per_subzone(sz_num, :);
+                
+                if ~isempty(find(cellfun('isempty', ...
+                                         subzone_sensors), 1))
+                                     
+                    empty_cell_index = find(cellfun(...
+                                                'isempty', subzone_sensors), ...
+                                            1);
+                                        
+                    amount_of_active_sensors_in_subzone = ...
+                        empty_cell_index - 1;
+                else
+                    amount_of_active_sensors_in_subzone = ...
+                        length(subzone_sensors);
+                end
+                
+                for s = amount_of_active_sensors_in_subzone : -1 : 1
+                    sensor = obj.sensors_per_subzone{sz_num, s};
+                    
+                    for f = 1 : length(obj.fires)
+                        fire = obj.fires{f};
+
+                        fire_location = fire.getLocation();
+                        radius = fire.getRadius();
+
+                        distance = norm(sensor.getLocation() - fire_location);
+                        
+                        % Then sensor is inside the flames
+                        if distance <= radius
+                            % Remove sensor from gui
+                            if obj.visualizer_state
+                                obj.visualizer.removeSensor(sensor);
+                            end
+
+                            % Remove sensor from simulator list
+                            obj.sensors_per_subzone{sz_num, s}(1) = [];
+                        end 
+                    end
+                end
             end
         end
         
@@ -914,6 +954,55 @@ classdef Simulator <  handle
                    end
                end
            end
+        end
+        
+        function findAndExtinguishFires(obj, ...
+                    location_of_sensors_which_detected_fire)
+            
+            fires_to_extinguish = [];    
+                
+            for l = 1 : length(location_of_sensors_which_detected_fire)
+                for f = 1 : length(obj.fires)
+                    fire = obj.fires{f};
+
+                    fire_location = fire.getLocation();
+                    influence_radius = fire.getRadiusOfInfluence();
+                    
+                    distance = norm(location_of_sensors_which_detected_fire{l} - fire_location);
+            
+                    if distance <= influence_radius
+                        already_known = false;
+                        
+                        % Check to avoid duplicates
+                        for fte = 1 : length(fires_to_extinguish)
+                            if fires_to_extinguish(fte) == f
+                               already_known = true; 
+                               break;
+                            end
+                        end
+                        
+                        if ~already_known
+                            fires_to_extinguish = [fires_to_extinguish f];
+                            break;
+                        end
+                    end 
+                end
+            end
+            
+            fires_to_extinguish = sort(fires_to_extinguish);
+            
+            % Check if it doesn't create "holes" in the fires list
+            for f  = 1 : length(fires_to_extinguish)
+                idx = fires_to_extinguish(f);
+                
+                fire = obj.fires{idx - (f - 1)};
+               
+                if obj.visualizer_state
+                    obj.visualizer.removeFire(fire);
+                end
+               
+                obj.fires(idx - (f - 1)) = []; 
+            end
         end
     end
 end
