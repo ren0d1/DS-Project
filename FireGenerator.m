@@ -9,10 +9,11 @@ classdef FireGenerator < handle
     properties (Constant)
         max_fire_prob = 0.01;
         
-        temperature_influence = 0.5
+        temperature_influence = 0.33;
         
-        humidity_influence = 0.5
+        humidity_influence = 0.33;
         
+        wind_influence = 0.33;
         % Min & max temperature/humidity according to:
         %https://weatherspark.com/y/144563/Average-Weather-in-Newcastle-Australia-Year-Round
         
@@ -32,6 +33,64 @@ classdef FireGenerator < handle
             fire_probability = obj.fireProbability;
         end
         
+        function wind_parameter = retrieve_windpar(wind):
+            
+            if wind < 2
+                
+                wind_parameter = 0;
+            
+            elseif wind <= 5
+                
+                wind_parameter = 0.2;
+                
+            elseif wind <= 11
+                
+                wind_parameter = 0.4;
+                
+            elseif wind <= 19
+                
+                wind_parameter = 0.6;
+                
+            elseif wind <= 28
+                
+                wind_parameter = 0.8;
+                
+            elseif wind <= 38
+                
+                wind_parameter = 1.0;
+                
+            elseif wind <= 49
+                
+                wind_parameter = 0.86;
+                
+            elseif wind <= 61
+                
+                wind_parameter = 0.71;
+                
+            elseif wind <= 74
+                
+                wind_parameter = 0.57;
+                
+            elseif wind <= 88
+                
+                wind_parameter = 0.43;
+                
+            elseif wind <= 102 
+                
+                wind_parameter = 0.29;
+                
+            elseif wind <= 117
+                
+                wind_parameter = 0.14;
+                
+            else
+                
+                wind_parameter = 0;
+                
+            end
+            
+        end
+        
  
         function updateFireProbability(obj, current_temperature, current_humidity, current_wind)
             % Reasoning: humidity parameter is max if current_humidty =
@@ -40,17 +99,20 @@ classdef FireGenerator < handle
             %max_temperature, and 0 if current_temperature = min_temperature,
             %which is the annually minimum of the weather data
             
-            humidity_parameter = obj.humidity_influence * ...
-                ( 1 - ((current_humidity - obj.min_humidity) / ...
-                       (obj.max_humidity - obj.min_humidity)));
             
-            temperature_parameter = obj.temperature_influence * ...
-                ((current_temperature - obj.min_temperature) / ...
-                 (obj.max_temperature - obj.min_temperature));
+            wind_parameter = retrieve_windpar(current_wind);
+  
+            humidity_parameter = 1 - ((current_humidity - obj.min_humidity) / ...
+                       (obj.max_humidity - obj.min_humidity));
             
-            fire_prob = (humidity_parameter + temperature_parameter) * ...
-                            obj.max_fire_prob;
+            temperature_parameter = (current_temperature - obj.min_temperature) / ...
+                 (obj.max_temperature - obj.min_temperature);
             
+             
+            fire_prob = (humidity_parameter * obj.humidity_influence + ...
+                        temperature_parameter * obj.temperature_influence + ...
+                        wind_parameter * obj.wind_influence) * obj.max_fire_prob;
+             
             if fire_prob < 0
                 obj.fireProbability = obj.max_fire_prob;
             else
