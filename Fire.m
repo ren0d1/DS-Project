@@ -215,6 +215,10 @@ classdef Fire < handle
             radius = obj.radius;
         end
         
+        function influence_radius = getRadiusOfInfluence(obj)
+            influence_radius = obj.radius_influence;
+        end
+        
         function sz_num = getSubZone(obj)
             sz_num = obj.sz_num;
         end
