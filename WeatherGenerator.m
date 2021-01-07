@@ -30,8 +30,9 @@ classdef WeatherGenerator
         end
         
         function [regional_temperatures_min_matrix, regional_temperatures_max_matrix, ...
-                regional_humidity_min_matrix, regional_humidity_max_matrix] ...
-                = regionalAlteration(obj, temperature_variance, humidity_variance)
+                regional_humidity_min_matrix, regional_humidity_max_matrix, ...
+                regional_wind_min_matrix, regional_wind_max_matrix] ...
+                = regionalAlteration(obj, temperature_variance, humidity_variance, wind_variance)
             %regionalAlteration
             %   Uses the global weather information of the object and the ...
             %provided variance to generate slightly different data for a ...
@@ -45,8 +46,11 @@ classdef WeatherGenerator
             regional_temperatures_max_matrix = obj.global_temperatures_max_matrix;
             regional_humidity_min_matrix = obj.global_humidity_min_matrix;
             regional_humidity_max_matrix = obj.global_humidity_max_matrix;
+            regional_wind_min_matrix = obj.global_wind_min_matrix;
+            regional_wind_max_matrix =  obj.global_wind_min_matrix;
 
-            % Code to alter data          
+            % CODE TO ALTER DATA %
+            % Min temperature
             for t = 1 : length(regional_temperatures_min_matrix)
                 variation_of_the_day = temperature_variance * rand();
                 current_min_temperature = regional_temperatures_min_matrix(t);
@@ -54,6 +58,7 @@ classdef WeatherGenerator
                                                         variation_of_the_day;
             end
             
+            % Max temperature
             for t = 1 : length(regional_temperatures_max_matrix)
                 variation_of_the_day = temperature_variance * rand();
                 current_max_temperature = regional_temperatures_max_matrix(t);
@@ -61,6 +66,7 @@ classdef WeatherGenerator
                                                         variation_of_the_day;
             end
             
+            % Min humidity
             for p = 1 : length(regional_humidity_min_matrix)
                 variation_of_the_day = humidity_variance * rand();
                 current_min_humidity = regional_humidity_min_matrix(p);
@@ -68,19 +74,38 @@ classdef WeatherGenerator
                                                     variation_of_the_day;
             end
             
+            % Max humidity
             for p = 1 : length(regional_humidity_max_matrix)
                 variation_of_the_day = humidity_variance * rand();
                 current_max_humidity = regional_humidity_max_matrix(p);
                 regional_humidity_max_matrix(p) = current_max_humidity + ...
                                                     variation_of_the_day;
             end
+            
+            % Min wind
+            for w = 1 : length(regional_wind_min_matrix)
+                variation_of_the_day = wind_variance * rand();
+                current_min_wind = regional_wind_min_matrix(w);
+                regional_wind_min_matrix(w) = current_min_wind + ...
+                                                        variation_of_the_day;
+            end
+            
+            % Max wind
+            for w = 1 : length(regional_wind_max_matrix)
+                variation_of_the_day = wind_variance * rand();
+                current_max_wind = regional_wind_max_matrix(w);
+                regional_wind_max_matrix(w) = current_max_wind + ...
+                                                        variation_of_the_day;
+            end    
         end
         
-        function [hourly_temperatures_matrix, hourly_humidity_matrix] ...
+        function [hourly_temperatures_matrix, hourly_humidity_matrix, hourly_wind_matrix] ...
                 = discretizeHourlyWeatherData(obj, min_temperatures_matrix,  ...
                                                 max_temperatures_matrix, ...
                                                 min_humidity_matrix, ...
-                                                max_humidity_matrix)
+                                                max_humidity_matrix, ...
+                                                min_wind_matrix,...
+                                                max_wind_matrix)
             %discretizeHourlyWeatherData
             %   Discretize the given input matrices from daily values to ...
             %hourly following the Sin (14R-1) method. Q-Sin method was ...
@@ -99,8 +124,13 @@ classdef WeatherGenerator
             
             hourly_temperatures_matrix = zeros(amount_of_days, 24);
             hourly_humidity_matrix = zeros(amount_of_days, 24);
+            hourly_wind_matrix = zeros(amount_of_days, 24);
             
             for d = 1 : amount_of_days
+                
+                max_daily_wind = min_wind_matrix(d);
+                min_daily_wind = max_wind_matrix(d);
+                
                 for t = 1 : 24    
                     % Temperature discretization
                     if t < 14
@@ -162,6 +192,12 @@ classdef WeatherGenerator
                     end
                     
                     hourly_humidity_matrix(d, t) = humidity_at_time_t;
+                    
+                    % Wind discretization:
+                    %Deviates randomly between max wind and min wind
+                    %measured.
+                    wind_at_time_t = min_daily_wind + rand * (max_daily_wind - min_daily_wind);
+                    hourly_wind_matrix(d,t) = wind_at_time_t;
                 end
             end
         end
