@@ -27,28 +27,35 @@ classdef Sensor < handle
         % Rules to be applied. set to true if it should be considered
         local_abs_temp = 1;
         
-        local_der_temp = 1;
+        local_der_temp = 0;
         
-        global_abs_temp = 1;
+        global_abs_temp = 0;
         
-        global_der_temp  = 1;
+        global_der_temp  = 0;
         
         % Number of rules applied
-        no_rules = 4;
+        no_rules = 1;
         
         % Set if AND or OR mode should be used
-        and_mode = true;
+        and_mode = false;
         
         % PARAMETERS TO BE TUNED %
         % Temperature that is a threshold for fire detection
-        local_temp_threshold = 80; %[Celsius]
+        % set to global max temperature according to data
+        local_temp_threshold = 44; %[Celsius]
         
-        local_derivative_thresh = 10;
+        %max over the year according to the formula (max_temp - min_temp) /
+        %8 is 3.7. putting a margin of 50%.
+        local_derivative_thresh = 5.5;
         
-        % The allowed temperature difference to neighborly sensors
-        global_temp_threshold = 10;  
+        % The allowed temperature difference to the mean of neighborly sensors
+        % temperature. Set to 5.5 as well.
+        global_temp_threshold = 5.5;  
         
-        global_derivative_thresh = 10; 
+        %The allowed difference between the own temp derivative and the
+        %temp derivative of neighborly sensors. set to 2 (since all sensors
+        %should have a very similar trend)
+        global_derivative_thresh = 2; 
         % END - PARAMETERS TO BE TUNED %
         
         % List of sensors in range to send data to (Subscription pattern ...
