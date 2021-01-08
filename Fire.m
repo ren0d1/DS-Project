@@ -95,65 +95,6 @@ classdef Fire < handle
            obj.local_temperature = temperature;
         end
         
-        function wind_parameter = retrieve_windpar(wind)
-            
-            if wind < 2
-                
-                wind_parameter = 0;
-            
-            elseif wind <= 5
-                
-                wind_parameter = 0.2;
-                
-            elseif wind <= 11
-                
-                wind_parameter = 0.4;
-                
-            elseif wind <= 19
-                
-                wind_parameter = 0.6;
-                
-            elseif wind <= 28
-                
-                wind_parameter = 0.8;
-                
-            elseif wind <= 38
-                
-                wind_parameter = 1.0;
-                
-            elseif wind <= 49
-                
-                wind_parameter = 0.86;
-                
-            elseif wind <= 61
-                
-                wind_parameter = 0.71;
-                
-            elseif wind <= 74
-                
-                wind_parameter = 0.57;
-                
-            elseif wind <= 88
-                
-                wind_parameter = 0.43;
-                
-            elseif wind <= 102 
-                
-                wind_parameter = 0.29;
-                
-            elseif wind <= 117
-                
-                wind_parameter = 0.14;
-                
-            else
-                
-                wind_parameter = 0;
-                
-            end
-            
-        end
-        
-                
         function increaseArea(obj, time_factor)
             % Spread rate fire according to "Otways Fire No. 22 – 1982/83 ...
             %Aspects of fire behaviour. Research Report No.20" (PDF).
@@ -161,10 +102,8 @@ classdef Fire < handle
             % According to the official weather data, 104km per hour ...
             %is the max wind speed. 
             % Source: https://weatherspark.com/y/144563/Average-Weather-in-Newcastle-Australia-Year-Round
-            wind_par = retrieve_windpar(obj.local_wind);
+            wind_par = FireGenerator.retrieve_windpar(obj.local_wind);
     
-      
-          
             humidity_par =  1- (obj.local_humidity - obj.min_humidity) / ...
                             (obj.max_humidity - obj.min_humidity);                     
                                 
@@ -175,8 +114,7 @@ classdef Fire < handle
             increase_factor = wind_par * obj.wind_influence + ...
                               humidity_par * obj.humidity_influence + ...
                               temperature_par * obj.temperature_influence;
-                          
-                          
+                                          
             % The fire spread is modelled with a maximum speed of 10.8km/h, ...
             %uniformely distributed and called every minute.
             obj.radius_increase = increase_factor * ...
@@ -221,6 +159,10 @@ classdef Fire < handle
         
         function sz_num = getSubZone(obj)
             sz_num = obj.sz_num;
+        end
+        
+        function time_alive = getTimeAlive(obj)
+           time_alive = obj.time_alive; 
         end
 
         % Computes the temperature increase based on the respective sensor ...

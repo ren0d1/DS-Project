@@ -51,8 +51,8 @@ classdef Simulator <  handle
         sensors_per_subzone = {};
         
         % Simulation states
-        sensors_per_subzone_at_tick_t = {};
-        fires_at_tick_t = {};
+        sensors_data_per_subzone_at_tick_t = {};
+        fires_data_at_tick_t = {};
     end
     
     methods
@@ -180,11 +180,61 @@ classdef Simulator <  handle
                             end
                         end
                         
-                        obj.sensors_per_subzone_at_tick_t{end+1} = ...
-                            obj.sensors_per_subzone;
+                        sensors_per_subzone_data = cell(...
+                            obj.amount_of_subzones, ...
+                            size(obj.sensors_per_subzone, 2));
+                        
+                        for sz = 1 : obj.amount_of_subzones
+                            % Find which active sensors are in the subzone
+                            subzone_sensors = obj.sensors_per_subzone(sz, :);
 
-                        obj.fires_at_tick_t{end+1} = ...
-                            obj.fires;
+                            if ~isempty(find(cellfun('isempty', ...
+                                                     subzone_sensors), 1))
+
+                                empty_cell_index = find(cellfun(...
+                                                            'isempty', subzone_sensors), ...
+                                                        1);
+
+                                amount_of_active_sensors_in_subzone = ...
+                                    empty_cell_index - 1;
+                            else
+                                amount_of_active_sensors_in_subzone = ...
+                                    length(subzone_sensors);
+                            end
+
+                            for s = 1 : amount_of_active_sensors_in_subzone
+                                sensor_data.uuid = ...
+                                    obj.sensors_per_subzone{sz, ...
+                                            s}.getUuid();
+                                
+                                sensor_data.alarm_status = ...
+                                    obj.sensors_per_subzone{sz, ...
+                                            s}.getFireDetectionState();
+                                
+                                sensor_data.location = ...
+                                    obj.sensors_per_subzone{sz, ...
+                                            s}.getLocation();
+                                        
+                                sensors_per_subzone_data{sz, s} = ...
+                                    sensor_data;        
+                            end
+                        end
+                        
+                        obj.sensors_data_per_subzone_at_tick_t{end + 1} = ...
+                            sensors_per_subzone_data;
+                        
+                        fires_data = {};
+                        
+                        for f = 1 : length(obj.fires)
+                            fire.location = obj.fires{f}.getLocation();
+                            fire.radius = obj.fires{f}.getRadius();
+                            fire.time_alive = obj.fires{f}.getTimeAlive();
+                            
+                            fires_data{end + 1} = fire;
+                        end
+
+                        obj.fires_data_at_tick_t{end + 1} = ...
+                            fires_data;
                         
                         % Replace dead sensors which got notified ...
                         %to the main base (cannot be slower/faster ...
@@ -205,8 +255,8 @@ classdef Simulator <  handle
                 end
             end
             
-            s = obj.sensors_per_subzone_at_tick_t;
-            f = obj.fires_at_tick_t;
+            s = obj.sensors_data_per_subzone_at_tick_t;
+            f = obj.fires_data_at_tick_t;
         end
     end
     
@@ -697,7 +747,7 @@ classdef Simulator <  handle
             end
         end
         
-        function updateFires(obj, hourly_wind, hourly_humidity)            
+        function updateFires(obj, hourly_wind, hourly_humidity, hourly_temperature)            
             for f = 1 : length(obj.fires)
                 fire = obj.fires{f};
                 
@@ -849,7 +899,9 @@ classdef Simulator <  handle
                         length(subzone_sensors);
                 end
                 
-                for s = amount_of_active_sensors_in_subzone : -1 : 1
+                indices_of_sensors_to_remove = [];
+                
+                for s = amount_of_active_sensors_in_subzone : - 1 : 1
                     sensor = obj.sensors_per_subzone{sz_num, s};
                     
                     for f = 1 : length(obj.fires)
@@ -861,15 +913,37 @@ classdef Simulator <  handle
                         distance = norm(sensor.getLocation() - fire_location);
                         
                         % Then sensor is inside the flames
-                        if distance <= radius
-                            % Remove sensor from gui
-                            if obj.visualizer_state
-                                obj.visualizer.removeSensor(sensor);
-                            end
-
-                            % Remove sensor from simulator list
-                            obj.sensors_per_subzone{sz_num, s}(1) = [];
+                        if distance <= radius && ...
+                                ~ismember(s, indices_of_sensors_to_remove)
+                            
+                            indices_of_sensors_to_remove = ...
+                                [indices_of_sensors_to_remove s];
                         end 
+                    end
+                end
+                
+                for c = 1 : length(indices_of_sensors_to_remove)
+                    idx = indices_of_sensors_to_remove(c);
+                    
+                    sensor = obj.sensors_per_subzone{sz_num, idx};
+                                               
+                    % Remove sensor from gui
+                    if obj.visualizer_state
+                        obj.visualizer.removeSensor(sensor);
+                    end
+
+                    % Remove sensor from simulator list
+                    obj.sensors_per_subzone{sz_num, idx}(1) = [];
+                   
+                    for s = idx : (amount_of_active_sensors_in_subzone - c)
+                        obj.sensors_per_subzone{sz_num, s}(1) = ...
+                            obj.sensors_per_subzone{sz_num, s + 1}(1);
+                    end
+                    
+                    if idx ~= amount_of_active_sensors_in_subzone - (c - 1)
+                        obj.sensors_per_subzone{sz_num, ...
+                                amount_of_active_sensors_in_subzone - ...
+                                (c - 1)}(1) = [];
                     end
                 end
             end

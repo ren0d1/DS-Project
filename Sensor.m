@@ -127,6 +127,10 @@ classdef Sensor < handle
            uuid = erase(string(obj.uuid), "-");
         end
         
+        function alarm_status = getFireDetectionState(obj)
+            alarm_status = obj.fire_detected_local;
+        end
+        
         function t_dash = get.derivative_temperature(obj)
             if length(obj.temperature_list) >=  obj.weather_data_list_length
                 % Compute difference of last and first element of the ...
@@ -351,7 +355,8 @@ classdef Sensor < handle
                     end
                 end
                 
-                if ~known_sensor_sent_message
+                % How can known_sensor_index be 0? (TODO)
+                if ~known_sensor_sent_message && known_sensor_index ~= 0
                     notification.uuid = ...
                         obj.neighborly_sensors{known_sensor_index}.getUuid();
                     notification.location = ...

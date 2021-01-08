@@ -24,6 +24,38 @@ classdef FireGenerator < handle
         min_humidity = 9; %[%]  
     end
     
+    methods (Static)
+        function wind_parameter = retrieve_windpar(wind)
+            if wind < 2 
+                wind_parameter = 0;
+            elseif wind <= 5
+                wind_parameter = 0.2;
+            elseif wind <= 11
+                wind_parameter = 0.4;
+            elseif wind <= 19
+                wind_parameter = 0.6;
+            elseif wind <= 28
+                wind_parameter = 0.8;
+            elseif wind <= 38
+                wind_parameter = 1.0;
+            elseif wind <= 49
+                wind_parameter = 0.86;
+            elseif wind <= 61
+                wind_parameter = 0.71;
+            elseif wind <= 74
+                wind_parameter = 0.57;
+            elseif wind <= 88
+                wind_parameter = 0.43;
+            elseif wind <= 102 
+                wind_parameter = 0.29;
+            elseif wind <= 117
+                wind_parameter = 0.14;
+            else
+                wind_parameter = 0;
+            end
+        end
+    end
+    
     methods
         function obj = FireGenerator()
             obj.fireProbability = 0;
@@ -33,65 +65,6 @@ classdef FireGenerator < handle
             fire_probability = obj.fireProbability;
         end
         
-        function wind_parameter = retrieve_windpar(wind)
-            
-            if wind < 2
-                
-                wind_parameter = 0;
-            
-            elseif wind <= 5
-                
-                wind_parameter = 0.2;
-                
-            elseif wind <= 11
-                
-                wind_parameter = 0.4;
-                
-            elseif wind <= 19
-                
-                wind_parameter = 0.6;
-                
-            elseif wind <= 28
-                
-                wind_parameter = 0.8;
-                
-            elseif wind <= 38
-                
-                wind_parameter = 1.0;
-                
-            elseif wind <= 49
-                
-                wind_parameter = 0.86;
-                
-            elseif wind <= 61
-                
-                wind_parameter = 0.71;
-                
-            elseif wind <= 74
-                
-                wind_parameter = 0.57;
-                
-            elseif wind <= 88
-                
-                wind_parameter = 0.43;
-                
-            elseif wind <= 102 
-                
-                wind_parameter = 0.29;
-                
-            elseif wind <= 117
-                
-                wind_parameter = 0.14;
-                
-            else
-                
-                wind_parameter = 0;
-                
-            end
-            
-        end
-        
- 
         function updateFireProbability(obj, current_temperature, current_humidity, current_wind)
             % Reasoning: humidity parameter is max if current_humidty =
             %min_humidity, which is the annualy minimum of the weather data
@@ -100,7 +73,7 @@ classdef FireGenerator < handle
             %which is the annually minimum of the weather data
             
             
-            wind_parameter = retrieve_windpar(current_wind);
+            wind_parameter = FireGenerator.retrieve_windpar(current_wind);
             
             %Humidity is scaled to %, thats why its divided by 100
             humidity_parameter = 1 - ((current_humidity - obj.min_humidity) / ...
