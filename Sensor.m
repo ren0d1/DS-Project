@@ -14,7 +14,7 @@ classdef Sensor < handle
         
         %   PROPERTIES RELATED TO LOCAL FIRE DETECTION ALGORITHM   %     
         % Necessary amount of data to start outlier detection
-        weather_data_list_length = 10;
+        weather_data_list_length = 3;
         
         % Determines how much the new value has to differ from the mean ...
         %to be considered as an outlier.

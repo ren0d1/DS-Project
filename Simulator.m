@@ -169,7 +169,7 @@ classdef Simulator <  handle
                             end
                             
                             % Check if sensors are destroyed due to fires
-                            obj.checkSensorsBrokenByFire(sz);
+                            % obj.checkSensorsBrokenByFire(sz);
 
                             % Updates GUI
                             if obj.visualizer_state
