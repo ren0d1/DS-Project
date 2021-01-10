@@ -25,11 +25,11 @@ classdef Sensor < handle
         humidity_list = {};
         
         % Rules to be applied. set to true if it should be considered
-        local_abs_temp = 1;
+        local_abs_temp = 0;
         
         local_der_temp = 0;
         
-        global_abs_temp = 0;
+        global_abs_temp = 1;
         
         global_der_temp  = 0;
         
@@ -42,7 +42,7 @@ classdef Sensor < handle
         % PARAMETERS TO BE TUNED %
         % Temperature that is a threshold for fire detection
         % set to global max temperature according to data
-        local_temp_threshold = 44; %[Celsius]
+        local_temp_threshold = 50; %[Celsius]
         
         %max over the year according to the formula (max_temp - min_temp) /
         %8 is 3.7. putting a margin of 50%.
@@ -50,7 +50,7 @@ classdef Sensor < handle
         
         % The allowed temperature difference to the mean of neighborly sensors
         % temperature. Set to 5.5 as well.
-        global_temp_threshold = 5.5;  
+        global_temp_threshold = 0.5;  
         
         %The allowed difference between the own temp derivative and the
         %temp derivative of neighborly sensors. set to 2 (since all sensors
@@ -91,8 +91,6 @@ classdef Sensor < handle
     end
     
     properties (Constant)
-        base_station = BaseStation.getInstance();
-        
         % This represents the time allowed before the lack of sign of ...
         %life becomes problematic. (Value needs to be at least 1 due to ...
         %limitations from the simulation sequential nature).
@@ -101,11 +99,13 @@ classdef Sensor < handle
     
     methods (Static)
         function notify_base_about_fire(info)
-            Sensor.base_station.listen_for_alert(1, info);
+            base_station = BaseStation.getInstance();
+            base_station.listen_for_alert(1, info);
         end 
         
         function notify_base_about_dead_sensor(sensor_info)
-            Sensor.base_station.listen_for_alert(2, sensor_info);
+            base_station = BaseStation.getInstance();
+            base_station.listen_for_alert(2, sensor_info);
         end 
     end
     
@@ -563,6 +563,9 @@ classdef Sensor < handle
                 end
             end
             
+            %for testing
+            %obj.fire_detected_local = true;
+            
             % Outlier detection arrays + time stamp
             outlier_detection.fire_detected_local = obj.fire_detected_local;
             outlier_detection.time_stamp = obj.time_stamp;
@@ -570,7 +573,7 @@ classdef Sensor < handle
             obj.outlier_detections{end + 1} = outlier_detection;
             
             if obj.fire_detected_local
-                obj.notify_base_about_fire(obj.location); 
+                Sensor.notify_base_about_fire(obj.location); 
             end
         end
         
