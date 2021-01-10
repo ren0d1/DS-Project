@@ -32,10 +32,10 @@ zone_image = "sub_area_of_interest";
 zone_width = 40; %m
 zone_height = 42.5; %m
 
-simulation_time = 2; % In days
+simulation_time = 1; % In days
 sensing_rate = 1; % In minutes for simulation purposes
 
-starting_day = 331; % [1..years * 365] ? starting_day + simulation_time <= years * 365
+starting_day = 52; % [1..years * 365] ? starting_day + simulation_time <= years * 365
 
 plane_mode = false; % Defines if the sensors are dropped based on chosen ...
                     %plane path or randomly scattered across the subzones.

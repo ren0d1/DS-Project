@@ -14,7 +14,7 @@ classdef Sensor < handle
         
         %   PROPERTIES RELATED TO LOCAL FIRE DETECTION ALGORITHM   %     
         % Necessary amount of data to start outlier detection
-        weather_data_list_length = 3;
+        weather_data_list_length = 1;
         
         % Determines how much the new value has to differ from the mean ...
         %to be considered as an outlier.
@@ -196,7 +196,10 @@ classdef Sensor < handle
             %--> done; get method
             
             obj.send_data_packages();
-            obj.compute_fireprob();
+        end
+        
+        function detectFire(obj)
+            obj.compute_fireprob(); 
         end
         
         function addNeighbor(obj, sensor)
@@ -211,7 +214,7 @@ classdef Sensor < handle
             if strcmp(leFrameDecodeStatus, 'Success') % Decoding is successful
                 payload_length = length(payload(:, 1));
                 
-                % Check if 32 bytes, then it is only a sign of life
+                % Check if 16 bytes, then it is only a sign of life
                 if payload_length == 16
                     transformed_data = join(string(payload(1 : ...
                                                 payload_length, :)), '');
@@ -279,7 +282,7 @@ classdef Sensor < handle
                     neighborly_sensor_information.time_stamp(1) = ...
                         hex2dec(transformed_data);
 
-                    % UUID (32 bytes)
+                    % UUID (16 bytes)
                     transformed_data = join(string(payload(payload_length - 15 : ...
                                                 payload_length, :)), '');
                     neighborly_sensor_information.uuid = transformed_data;

@@ -12,11 +12,11 @@ classdef Simulator <  handle
                        %due to plane speed and fall.
         
         % Variables for random scatter
-        amount_of_sensors_per_100_square_meters = 2;
+        amount_of_sensors_per_100_square_meters = 1;
         
         % Expected maximum length for a properly working bluetooth ...
         %transmission in meters.
-        maximum_bluetooth_range = 10;
+        maximum_bluetooth_range = 20;
         
         % Rate at which the sensors sign of life is sent
         sign_of_life_rate = 1; % in minutes
@@ -161,6 +161,8 @@ classdef Simulator <  handle
                             obj.updateSensors(sz, hourly_temperature(sz), ...
                                               hourly_humidity(sz), day, hour, ...
                                               tick);
+                                          
+                            obj.detectFires(sz);
 
                             % Simulate random technical problem preventing ...
                             %sensor from working any longer. (TODO)
@@ -169,7 +171,7 @@ classdef Simulator <  handle
                             end
                             
                             % Check if sensors are destroyed due to fires
-                            % obj.checkSensorsBrokenByFire(sz);
+                            obj.checkSensorsBrokenByFire(sz);
 
                             % Updates GUI
                             if obj.visualizer_state
@@ -837,6 +839,36 @@ classdef Simulator <  handle
                         sensor.send_sign_of_life();
                         sensor.check_sign_of_life();
                     end   
+                end
+            end
+        end
+        
+        function detectFires(obj, sz_num)
+            % Check if there are any active sensor in the subzone
+            if ~isempty(obj.sensors_per_subzone{1}) && ...
+                    size(obj.sensors_per_subzone, 1) >= sz_num
+                
+                % Find which active sensors are in the subzone
+                subzone_sensors = obj.sensors_per_subzone(sz_num, :);
+                
+                if ~isempty(find(cellfun('isempty', ...
+                                         subzone_sensors), 1))
+                                     
+                    empty_cell_index = find(cellfun(...
+                                                'isempty', subzone_sensors), ...
+                                            1);
+                                        
+                    amount_of_active_sensors_in_subzone = ...
+                        empty_cell_index - 1;
+                else
+                    amount_of_active_sensors_in_subzone = ...
+                        length(subzone_sensors);
+                end
+                
+                % Update each sensor of the subzone
+                for s = 1 : amount_of_active_sensors_in_subzone
+                    sensor = subzone_sensors{s};
+                    sensor.detectFire();
                 end
             end
         end
