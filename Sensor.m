@@ -14,7 +14,7 @@ classdef Sensor < handle
         
         %   PROPERTIES RELATED TO LOCAL FIRE DETECTION ALGORITHM   %     
         % Necessary amount of data to start outlier detection
-        weather_data_list_length = 1;
+        weather_data_list_length = 5;
         
         % Determines how much the new value has to differ from the mean ...
         %to be considered as an outlier.
@@ -132,14 +132,33 @@ classdef Sensor < handle
         end
         
         function t_dash = get.derivative_temperature(obj)
-            if length(obj.temperature_list) >=  obj.weather_data_list_length
-                % Compute difference of last and first element of the ...
-                %temperature stored in the temperature list.
-                t_dash = obj.temperature_list{obj.weather_data_list_length} ...
-                            - obj.temperature_list{1};
-            else
-                t_dash = -1;
+            
+            t_dash_max = -100;
+             % Compute difference of last element in the temperature list
+             % with all the others and get the maximum difference.
+            for s = 1:length(obj.temperature_list)
+              
+                t_dash = obj.temperature_list{end} ...
+                            - obj.temperature_list{s};
+                        
+                if t_dash_max < t_dash
+                   
+                    t_dash_max = t_dash;
+                    
+                end
+                
             end
+            
+%             if length(obj.temperature_list) >=  obj.weather_data_list_length
+%                 % Compute difference of last and first element of the ...
+%                 %temperature stored in the temperature list.
+%                 
+%                 
+%                 t_dash = obj.temperature_list{obj.weather_data_list_length} ...
+%                             - obj.temperature_list{1};
+%             else
+%                 t_dash = -1;
+%             end
             
         end
         
@@ -451,16 +470,16 @@ classdef Sensor < handle
             
             fire_detected = 0;
             
-            if length(obj.temperature_list) >=  obj.weather_data_list_length
-                for i = 1 : length(obj.temperature_list)
-                    deriv = obj.temperature_list{end} - obj.temperature_list{i}; 
-                    
-                    if deriv >= obj.local_derivative_thresh
-                        fire_detected = 1;
-                        return;
-                    end
+            %if length(obj.temperature_list) >=  obj.weather_data_list_length
+            for i = 1 : length(obj.temperature_list)
+                deriv = obj.temperature_list{end} - obj.temperature_list{i}; 
+
+                if deriv >= obj.local_derivative_thresh
+                    fire_detected = 1;
+                    return;
                 end
-            end 
+            end
+            %end 
         end
         
         % Check if global_abs_temp = true;
