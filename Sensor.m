@@ -564,7 +564,7 @@ classdef Sensor < handle
             end
 
             if obj.local_der_temp == 1
-                counter = counter + obj.check_local_derivative;
+                counter = counter + obj.check_local_derivative();
             end
 
             if obj.global_abs_temp ==1
