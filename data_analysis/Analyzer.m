@@ -15,9 +15,9 @@ classdef Analyzer < handle
     
     properties (Constant)
        
-        positive_threshold = 10;
+        threshold = 10;
         
-        negative_threshold = 1;
+        
         
     end
     
@@ -178,21 +178,15 @@ classdef Analyzer < handle
             %obtain x axis
             x = linspace(1,num_fires, num_fires);
             
-            %scatter(x,time_alives)
+            scatter(x,time_alives)
             
-            %scatter(x,radia)
+            scatter(x,radia)
             
             mean(time_alives)
             
             mean(radia)
             
-            
-            
-            
-            
-            
-            
-            
+
             
         end
 
@@ -256,20 +250,20 @@ classdef Analyzer < handle
                           end
                       end
 
-                      if sensor.alarm_status && distance < obj.positive_threshold
+                      if sensor.alarm_status && distance < obj.threshold
 
                           true_positives(1,index) =  true_positives(1,index) + 1;
 
-                      elseif sensor.alarm_status && distance > obj.positive_threshold
+                      elseif sensor.alarm_status && distance > obj.threshold
 
                           false_positives(1,index) = false_positives(1,index) + 1;
                       
                       %if the sensor hasn´t detected the fire till then, its considered as too late.    
-                      elseif ~sensor.alarm_status && distance <= obj.negative_threshold
+                      elseif ~sensor.alarm_status && distance <= obj.threshold
 
                            false_negatives(1,index) = false_negatives(1,index) + 1;
 
-                      elseif ~sensor.alarm_status && distance > obj.negative_threshold
+                      elseif ~sensor.alarm_status && distance > obj.threshold
 
                           true_negatives(1,index) = true_negatives(1,index) + 1;
                       end
@@ -283,6 +277,15 @@ classdef Analyzer < handle
         end 
         
 
+                            
+                        
+                        
+                        
+            
+        
+           
+            
+            
         
         function system_matrix = calc_sys_performance(obj)
 
@@ -331,19 +334,20 @@ classdef Analyzer < handle
 
                       end
 
-                      if sensor.alarm_status && distance < obj.positive_threshold
+                      if sensor.alarm_status && distance <= obj.threshold
 
                           true_positive = true_positive + 1;
 
-                      elseif sensor.alarm_status && distance > obj.positive_threshold
+                      elseif sensor.alarm_status && distance > obj.threshold
 
                           false_positive = false_positive + 1;
+                          
                       %if the sensor hasn´t detected the fire till then, its considered as too late.    
-                      elseif ~sensor.alarm_status && distance <= obj.negative_threshold
+                      elseif ~sensor.alarm_status && distance <= obj.threshold
 
                            false_negative = false_negative + 1;
 
-                      elseif ~sensor.alarm_status && distance > obj.negative_threshold
+                      elseif ~sensor.alarm_status && distance > obj.threshold
 
                           true_negative = true_negative + 1;
                       end

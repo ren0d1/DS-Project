@@ -167,17 +167,26 @@ classdef Analyzer < handle
             %prepare data for plotting
             radia = zeros(1,num_fires);
             time_alives = zeros(1,num_fires);
+            
             for f =1:num_fires
-               
+                radia(1,f) = fire_struct{f}.radius;
+                
+                time_alives(1,f) = fire_struct{f}.time_alive;
                 
             end
             
+            %obtain x axis
+            x = linspace(1,num_fires, num_fires);
             
+            scatter(x,time_alives)
             
+            scatter(x,radia)
             
+            mean(time_alives)
             
+            mean(radia)
             
-            
+
             
         end
 
@@ -267,7 +276,110 @@ classdef Analyzer < handle
             performances = [true_positives false_positives true_negatives false_negatives];
         end 
         
+        function tn, fn = true_false_negatives(obj)
+            
+            uuids_last_iteration = {}
+            status_last_iteration ={}
+            
+            tn = 0
+            fn = 0
+            
+            for tick = 1:length(obj.sensors_history)
 
+               %retrieve amount of subzones
+               sensors_per_subzone_data = obj.sensors_history{tick};
+
+               subzones = size(sensors_per_subzone_data);
+               subzones = subzones(1);
+               
+               
+               uuids_current_iteration = {};
+               status_current_iteration = {};
+               %iterate over subzones
+               for sz=1:subzones
+
+                   sensors_placeholder = size(sensors_per_subzone_data);
+
+                   sensors_placeholder = sensors_placeholder(2); 
+                   
+                   
+                   %iterate over each sensor and get data
+                   for s =1:sensors_placeholder
+                      
+                       sensor = sensors_per_subzone_data{sz,s};
+                       
+                       
+                       if tick ==1
+                           
+                           uuids_last_iteration{sz,end+1} = sensor.uuid;
+                           status_last_iteration{sz,end+1} =  sensor.alarm_status;
+                       
+                       else
+                           
+                           uuids_current_iteration{sz,end+1} = sensor.uuid;
+                           
+                           status_current_iteration{sz,end+1} = sensor.alarm_status;
+                           
+                           
+                       end
+                   end
+                       
+                   if tick > 1
+                        
+                       % get the sensor array of uuids last iteration and status
+                       uuids_last_iteration_sz = uuids_last_iteration{sz} 
+                       
+                       % same for current iteration
+                        uuids_current_iteration_sz = uuids_current_iteration{sz}
+                        for li = 1:size(uuids_last_iteration_sz,2)
+                            
+                            still_exists = false;
+             
+                            for ci = size(uuids_current_iteration,2)
+                                
+                               if isequal(uuids_last_iteration_sz{li}, uuids_current_iteration{ci})
+                                  
+                                   still_exists = true;
+                                   
+                               end
+                            end
+                                
+                               
+                            if still_exists && ~status_last_iteration{sz,li} 
+                                
+                                tn = tn+1;
+                            else
+                                
+                                fn = fn+1
+                            end
+                            
+                        end
+                   end
+                   
+                   
+                   
+               end
+               
+               if tick > 1 
+                 
+                   uuids_last_iteration = uuids_current_iteration;
+
+                   status_last_iteration= status_current_iteration;
+               end
+            end
+            
+        end
+        
+                   
+                            
+                        
+                        
+                        
+            
+        
+           
+            
+            
         
         function system_matrix = calc_sys_performance(obj)
 
@@ -316,13 +428,14 @@ classdef Analyzer < handle
 
                       end
 
-                      if sensor.alarm_status && distance < obj.positive_threshold
+                      if sensor.alarm_status && distance <= obj.positive_threshold
 
                           true_positive = true_positive + 1;
 
                       elseif sensor.alarm_status && distance > obj.positive_threshold
 
                           false_positive = false_positive + 1;
+                          
                       %if the sensor hasn´t detected the fire till then, its considered as too late.    
                       elseif ~sensor.alarm_status && distance <= obj.negative_threshold
 
