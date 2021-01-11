@@ -27,9 +27,9 @@ classdef Sensor < handle
         % Rules to be applied. set to true if it should be considered
         local_abs_temp = 0;
         
-        local_der_temp = 0;
+        local_der_temp = 1;
         
-        global_abs_temp = 1;
+        global_abs_temp = 0;
         
         global_der_temp  = 0;
         
@@ -46,7 +46,7 @@ classdef Sensor < handle
         
         %max over the year according to the formula (max_temp - min_temp) /
         %8 is 3.7. putting a margin of 50%.
-        local_derivative_thresh = 5.5;
+        local_derivative_thresh = 8.0;
         
         % The allowed temperature difference to the mean of neighborly sensors
         % temperature. Set to 5.5 as well.
@@ -486,19 +486,19 @@ classdef Sensor < handle
         function fire_detected = check_global_temp(obj)
             
             fire_detected = 0;
-            too_early = true;
+            data_corrpupted = false;
             
             temp_data = zeros(1, length(obj.received_data));
             
             for d = 1 : length(obj.received_data)
                 % Sanity check: do all retrieved messages belong to the ...
-                %earliest time instant?
+                %same time instant?
                 if obj.received_data{d}.time_stamp == ...
                         obj.received_data{1}.time_stamp
                     
                     temp_data(d) = obj.received_data{d}.temp;
                 else
-                    too_early = false;
+                    data_corrpupted = true;
                 end
             end
                 
@@ -507,7 +507,7 @@ classdef Sensor < handle
             temp_diff = obj.measured_temperature - temp_mean;
             
             if temp_diff >= obj.global_temp_threshold && ...
-                    too_early == false
+                    data_corrpupted == false
                 fire_detected = 1;
             end
         end
@@ -519,35 +519,38 @@ classdef Sensor < handle
         function fire_detected = check_global_derivative(obj)
             
             fire_detected = 0;
-            too_early = true;
+            data_corrpupted = false;
             
-            %temp_data = obj.received_data{1}.temperature;
-            temp_data = zeros(1, length(obj.received_data));
+            
+            temp_deriv_data = zeros(1, length(obj.received_data));
             
             for d = 1 : length(obj.received_data)
                 % Sanity check: do all retrieved messages belong to the ...
-                %earliest time instant?
+                %same time instant?
                 if obj.received_data{d}.time_stamp == ...
                         obj.received_data{1}.time_stamp
                     
-                    temp_data(d) = obj.received_data{d}.temp_deriv;
+                    temp_deriv_data(d) = obj.received_data{d}.temp_deriv;
                 else
-                    too_early = false;
+                    data_corrpupted = false;
                 end
                 
-                if obj.received_data{d}.temp_deriv == -1
-                    too_early = true;
-                end
+                %if obj.received_data{d}.temp_deriv == -1
+                %    data_corrpupted = true;
+                %end
             end
                 
-            temp_mean = mean(temp_data);
+            temp_mean_deriv = mean(temp_deriv_data);
             
-            temp_diff = obj.derivative_temperature - temp_mean;
+            temp_diff = obj.derivative_temperature - temp_mean_deriv;
             
             if temp_diff >= obj.global_derivative_thresh && ...
-                    too_early == false
+                    data_corrpupted == false
+                
                 fire_detected = 1;
+            
             end
+            
         end
         
         % Local fire detection algorithm

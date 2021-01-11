@@ -12,7 +12,7 @@ classdef Simulator <  handle
                        %due to plane speed and fall.
         
         % Variables for random scatter
-        amount_of_sensors_per_100_square_meters = 1;
+        amount_of_sensors_per_100_square_meters = 2;
         
         % Expected maximum length for a properly working bluetooth ...
         %transmission in meters.
