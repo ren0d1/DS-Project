@@ -229,6 +229,9 @@ classdef WeatherGenerator
             end
                 
         end
+        
+    end
+    
     
     
     methods(Static)
