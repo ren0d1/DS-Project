@@ -118,7 +118,7 @@ classdef Fire < handle
             % The fire spread is modelled with a maximum speed of 10.8km/h, ...
             %uniformely distributed and called every minute.
             obj.radius_increase = increase_factor * ...
-                                    180 /100 * time_factor ; %10.8km/h = 180m/min
+                                    1.8 * time_factor ; %10.8km/h = 180m/min
                                 
             % Change the height of the fire and radius increase 
             if obj.time_alive < 10

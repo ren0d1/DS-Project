@@ -136,74 +136,46 @@ classdef WeatherGenerator
                 t_lowest = obj.global_sunrise_time_matrix(d) - 1;
                 
                 for t = 1:24
-                    
                     %CASE 1
                     if t < t_lowest
-                        
                        %first edge case
                        if d ==1
-                          
                            temp_prev = max_temperatures_matrix(amount_of_days);
-                           humid_prev = min_humidity_matrix(amount_of_days);
                        else
-                           
                            temp_prev = max_temperatures_matrix(d-1);
-                           humid_prev = max_humidity_matrix(d-1);
                        end
                        
                        temp_next = min_temperatures_matrix(d);
-                       humid_next = max_humidity_matrix(d);
                        
                        %10 hours from the previous day have always passed,
                        %since max is always supposed to be at 14
                        t_prev = 14;
                        
-                       
                        t_next = t_lowest;
-                       
                     %CASE 2   
                     elseif t < 14
-                        
                         temp_prev = min_temperatures_matrix(d);
-                        humid_prev = max_humidity_matrix(d);
-                        
                         
                         temp_next = max_temperatures_matrix(d);
-                        humid_next = min_humidity_matrix(d);
                         
                         t_prev = t_lowest;
                         
                         t_next = 14;
-                    
                     %CASE 3, later than 14    
                     else
-                        
                        %second edge case
                        if d ==amount_of_days
-                           
                           temp_next = min_temperatures_matrix(1);
-                          humid_next = max_humidity_matrix(1);
-                          
+
                           t_next =  obj.global_sunrise_time_matrix(1) - 1;
-                          
-                          
                        else
-                          
                            temp_next = min_temperatures_matrix(d+1);
-                           humid_next = max_humidity_matrix(d+1);
                            t_next =  obj.global_sunrise_time_matrix(d+1) - 1;
-                           
-                           
                        end
                        
                        temp_prev = max_temperatures_matrix(d);
-                       humid_prev = min_humidity_matrix(d);
-                       
-                       
-                       
-                       t_prev = 14;
- 
 
+                       t_prev = 14;
                     end
                     
                     temperature_at_time_t = WeatherGenerator.getValueAtTimeT(...
@@ -211,11 +183,34 @@ classdef WeatherGenerator
                             t_next, t_prev);
                         
                     hourly_temperatures_matrix(d, t) = temperature_at_time_t;
-                    
+                                       
+                    % Humidity discretization
+                    if t < 12
+                        humid_next = min_humidity_matrix(d);
+                        humid_prev = max_humidity_matrix(d);
+                        t_next = 12;
+                        t_prev = 24;
+                    else
+                        humid_prev = min_humidity_matrix(d);
+                        t_prev = 12;
+                        t_next = 24;
+                        if d + 1 < amount_of_days
+                            humid_next = max_humidity_matrix(d + 1);
+                        else
+                            humid_next = max_humidity_matrix(1);
+                        end
+                    end
                     
                     humidity_at_time_t = WeatherGenerator.getValueAtTimeT(...
                                             t, humid_next, humid_prev, ...
                                             t_next, t_prev);
+                    
+                    % Corrects data to match min and max humidity
+                    if humidity_at_time_t > max_humidity_matrix(d)
+                        humidity_at_time_t = max_humidity_matrix(d);
+                    elseif humidity_at_time_t < max_humidity_matrix(d)
+                        humidity_at_time_t = max_humidity_matrix(d);
+                    end
                     
                     hourly_humidity_matrix(d, t) = humidity_at_time_t;
                     
