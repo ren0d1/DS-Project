@@ -238,20 +238,21 @@ classdef Simulator <  handle
                         obj.fires_data_at_tick_t{end + 1} = ...
                             fires_data;
                         
+                        % Extinguish detected fires
+                        bs = BaseStation.getInstance();
+                        
+                        location_of_sensors_which_detected_fire = ...
+                            bs.get_location_of_sensors_which_detected_fire();
+                        obj.findAndExtinguishFires(...
+                                location_of_sensors_which_detected_fire);
+                        
                         % Replace dead sensors which got notified ...
                         %to the main base (cannot be slower/faster ...
                         %than sign of life rate).
                         if mod(tick, obj.sign_of_life_rate) == 0
-                            bs = BaseStation.getInstance();
-                            
                             sensors_info = bs.get_sensors_to_replace();
                             obj.findAndReplaceSensors(sensors_info, ...
                                                         day, hour, tick);
-                                                    
-                            location_of_sensors_which_detected_fire = ...
-                                bs.get_location_of_sensors_which_detected_fire();
-                            obj.findAndExtinguishFires(...
-                                    location_of_sensors_which_detected_fire);
                         end
                     end    
                 end
@@ -358,6 +359,10 @@ classdef Simulator <  handle
                                                     {{start_x, start_y}, ...
                                                     {finish_x, finish_y}};
             end
+            
+            weather_file_name = strcat('weather-', strrep(datestr(datetime('now')), ':', '-'), '.mat');
+            weather_data = obj.subzones_discretized_weather_data;
+            save(weather_file_name, 'weather_data');
         end
         
         function generateSensorsBasedOnPlanePath(...

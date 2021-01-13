@@ -36,7 +36,7 @@ simulation_time = 1; % In days
 sensing_rate = 1; % In minutes for simulation purposes
 
 % 316 = largest variance day
-starting_day = 316; % [1..years * 365] ? starting_day + simulation_time <= years * 365
+starting_day = 52; % [1..years * 365] ? starting_day + simulation_time <= years * 365
 
 plane_mode = false; % Defines if the sensors are dropped based on chosen ...
                     %plane path or randomly scattered across the subzones.
