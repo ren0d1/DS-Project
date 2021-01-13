@@ -106,6 +106,85 @@ classdef Analyzer < handle
 
         end 
         
+        function closest_neighbors = get_closest_neighbor(obj)
+            
+           closest_neighbors = {};
+           fire_list = {};
+           
+           for t = 1:length(obj.fires_history)
+               
+               if ~isempty(obj.fires_history{t})
+                   
+                    for f = 1:length(obj.fires_history{t})
+
+                        %check if already exists in list
+                        already_known = false;
+
+                        for s = 1:length(fire_list)
+
+                            if isequal(fire_list{s}.location, obj.fires_history{t}{f}.location)
+
+                                %already in list
+                                already_known = true;   
+                                
+                            end
+                            
+                        end
+                        
+                        if ~already_known
+                            %insert new fire
+                            cur_fire_loc = obj.fires_history{t}{f}.location;
+                            cur_fire_radius = obj.fires_history{t}{f}.radius;
+                            
+                            cur_fire.location = cur_fire_loc;
+                            fire_list{end+1} = cur_fire;
+                            
+                            
+
+                            %loop over all sensors and get closest one.
+                                           %
+                            sensors_per_subzone_data = obj.sensors_history{t};
+
+                            subzones = size(obj.sensors_history{t},1);
+
+                            distance = 10000;
+                            for sz=1:subzones
+
+                                sensors_placeholder = size(obj.sensors_history{t},2);
+
+                                for s = 1:sensors_placeholder
+
+                                    if isempty(sensors_per_subzone_data{sz,s})
+
+                                        continue
+                                    end
+
+                                  sensor = sensors_per_subzone_data{sz,s};
+
+                                  curr_distance = norm(sensor.location - cur_fire_loc) - cur_fire_radius;
+                                  
+                                  if curr_distance < distance
+                                     
+                                     distance = curr_distance;
+                                  end
+                                  
+                                  
+                                end
+                                
+                            end
+                            
+                            closest_neighbors{end+1} = distance;
+ 
+                            
+                        end
+                        
+                    end
+               end
+               
+           end
+            
+        end
+        
         function fire_struct = ret_fire_data(obj)
 
             fire_struct = {};
@@ -146,6 +225,9 @@ classdef Analyzer < handle
                             current_fire.radius = obj.fires_history{t}{f}.radius;                   
 
                             fire_struct{end+1} = current_fire;
+                            
+                            
+                            
 
                         end
 
@@ -163,7 +245,9 @@ classdef Analyzer < handle
             
             
             %get number of fires
-            num_fires = length(fire_struct);
+            disp('number of fires');
+            num_fires = length(fire_struct)
+            
             %prepare data for plotting
             radia = zeros(1,num_fires);
             time_alives = zeros(1,num_fires);
@@ -181,12 +265,19 @@ classdef Analyzer < handle
             scatter(x,time_alives)
             
             scatter(x,radia)
-            
+            disp('mean of time alives')
             mean(time_alives)
             
+            disp('mean of radia')
             mean(radia)
             
-
+            disp('max time alive')
+            
+            max(time_alives)
+            
+            disp('max_fire_size')
+            
+            max(radia)
             
         end
 
@@ -277,14 +368,7 @@ classdef Analyzer < handle
         end 
         
 
-                            
-                        
-                        
-                        
-            
-        
            
-            
             
         
         function system_matrix = calc_sys_performance(obj)

@@ -24,8 +24,8 @@ years = 1; % amount of years available in the datafile
 % Each row corresponds to one subzone.
 subzones_variances = [-1, 3, 2; 5, 2, 1]; % temperature_variance, ...
                                           %humidity_variance, wind_variance. 
-                                          
 
+                                         
 zone_image = "sub_area_of_interest";
 %zone_width = 20000; %m
 %zone_height = 21250; %m

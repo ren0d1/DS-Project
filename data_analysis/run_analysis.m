@@ -2,7 +2,7 @@ clear all; % clear all variables from memory (needed for singleton to work prope
 clc; % clear command window
 
 
-file_name = 'simulation-11-Jan-2021 12-12-02.mat';
+file_name = 'simulation-13-Jan-2021 02-40-13.mat';
 
 a = Analyzer(file_name);
  
@@ -13,5 +13,12 @@ system_matrix = a.calc_sys_performance();
 
 a.save_system_matrix(system_matrix);
 
-%a.analyse_fires()
+a.analyse_fires();
 
+%a.analyse_fires()
+% 
+% closest_neighbors = a.get_closest_neighbor();
+% 
+% closest_neighbors =cell2mat(closest_neighbors);
+% 
+%mean(closest_neighbors)

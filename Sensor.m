@@ -46,7 +46,7 @@ classdef Sensor < handle
         
         %max over the year according to the formula (max_temp - min_temp) /
         %8 is 3.7. putting a margin of 50%.
-        local_derivative_thresh = 1.5;
+        local_derivative_thresh = 3.0;
         
         % The allowed temperature difference to the mean of neighborly sensors
         % temperature. Set to 5.5 as well.
