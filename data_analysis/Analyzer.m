@@ -418,11 +418,11 @@ classdef Analyzer < handle
 
                       end
 
-                      if sensor.alarm_status && distance <= obj.threshold
-
+                      if sensor.alarm_status == 1 && distance <= obj.threshold
+                       
                           true_positive = true_positive + 1;
 
-                      elseif sensor.alarm_status && distance > obj.threshold
+                      elseif sensor.alarm_status == 1 && distance > obj.threshold
 
                           false_positive = false_positive + 1;
                           
