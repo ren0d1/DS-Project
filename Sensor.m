@@ -498,7 +498,6 @@ classdef Sensor < handle
         function fire_detected = check_global_temp(obj)
             
             fire_detected = 0;
-            data_corrpupted = false;
             
             temp_data = zeros(1, length(obj.received_data));
             
@@ -509,8 +508,6 @@ classdef Sensor < handle
                         obj.received_data{1}.time_stamp
                     
                     temp_data(d) = obj.received_data{d}.temp;
-                else
-                    data_corrpupted = true;
                 end
             end
                 
@@ -518,8 +515,7 @@ classdef Sensor < handle
             
             temp_diff = obj.measured_temperature - temp_mean;
             
-            if temp_diff >= obj.global_temp_threshold && ...
-                    data_corrpupted == false
+            if temp_diff >= obj.global_temp_threshold
                 fire_detected = 1;
             end
         end
@@ -530,9 +526,7 @@ classdef Sensor < handle
         %any derivative.
         function fire_detected = check_global_derivative(obj)
             
-            fire_detected = 0;
-            data_corrpupted = false;
-            
+            fire_detected = 0;          
             
             temp_deriv_data = zeros(1, length(obj.received_data));
             
@@ -543,8 +537,6 @@ classdef Sensor < handle
                         obj.received_data{1}.time_stamp
                     
                     temp_deriv_data(d) = obj.received_data{d}.temp_deriv;
-                else
-                    data_corrpupted = false;
                 end
                 
                 %if obj.received_data{d}.temp_deriv == -1
@@ -556,8 +548,7 @@ classdef Sensor < handle
             
             temp_diff = obj.derivative_temperature - temp_mean_deriv;
             
-            if temp_diff >= obj.global_derivative_thresh && ...
-                    data_corrpupted == false
+            if temp_diff >= obj.global_derivative_thresh
                 
                 fire_detected = 1;
             
