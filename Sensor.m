@@ -46,7 +46,7 @@ classdef Sensor < handle
         
         %max over the year according to the formula (max_temp - min_temp) /
         %8 is 3.7. putting a margin of 50%.
-        local_derivative_thresh = 3.0;
+        local_derivative_thresh = 5.5;
         
         % The allowed temperature difference to the mean of neighborly sensors
         % temperature. Set to 5.5 as well.
@@ -223,6 +223,18 @@ classdef Sensor < handle
         
         function addNeighbor(obj, sensor)
             obj.neighborly_sensors{end+1} = sensor;
+            
+            % Sort by distance
+            dist = cellfun(@(x)norm(obj.getLocation() - ...
+                x.getLocation()), obj.neighborly_sensors);
+            
+            [~,sortIdx] = sort(dist);
+            
+            obj.neighborly_sensors = obj.neighborly_sensors(sortIdx);
+        end
+        
+        function size = howManyNeighbors(obj)
+             size = length(obj.neighborly_sensors);
         end
         
         function receive_data_package(obj, LE_frame)

@@ -674,81 +674,101 @@ classdef Simulator <  handle
         end 
         
         function assignNeighborsForAllSensors(obj)
+            subzone_sensors = {};
+            amount_of_active_sensors_in_subzone = {};
+            
             for sz = 1 : size(obj.subzones_variances, 1)
-                subzone_sensors = obj.sensors_per_subzone(sz, :);
+                subzone_sensors{end + 1} = obj.sensors_per_subzone(sz, :);
                 
                  if ~isempty(find(cellfun('isempty', ...
-                                         subzone_sensors), 1))
+                                         subzone_sensors{sz}), 1))
                                      
                     empty_cell_index = find(cellfun(...
-                                                'isempty', subzone_sensors), ...
+                                                'isempty', subzone_sensors{sz}), ...
                                             1);
                                         
-                    amount_of_active_sensors_in_subzone = ...
+                    amount_of_active_sensors_in_subzone{end + 1} = ...
                         empty_cell_index - 1;
-                else
-                    amount_of_active_sensors_in_subzone = ...
-                        length(subzone_sensors);
-                end
-
-                for s = 1 : amount_of_active_sensors_in_subzone
-                    sensor = subzone_sensors{s};
+                 else
+                    amount_of_active_sensors_in_subzone{end + 1} = ...
+                        length(subzone_sensors{sz});
+                 end
+            end
+            
+            for sz = 1 : size(obj.subzones_variances, 1)
+               for s = 1 : amount_of_active_sensors_in_subzone{sz}
+                    sensor = subzone_sensors{sz}{s};
                     
-                    for ns = 1 : amount_of_active_sensors_in_subzone
-                        if s ~= ns
-                            potential_neighbor_sensor = subzone_sensors{ns};
+                    for nsz = 1 : size(obj.subzones_variances, 1)
+                        for ns = 1 : amount_of_active_sensors_in_subzone{nsz}
+                            potential_neighbor_sensor = subzone_sensors{nsz}{ns};
                             
-                            % Check if the potential neighbor is in ...
-                            %communication range.
-                            if GeometryHelper.isPointInsideCircle(...
-                                    sensor.getLocation(), ...
-                                    obj.maximum_bluetooth_range, ...
-                                    potential_neighbor_sensor.getLocation())
+                            if sensor.getUuid() ~= ...
+                                    potential_neighbor_sensor.getUuid()
                                 
-                                % Since in theory it is in range, we ...
-                                %consider it as a neighbor to simulate ...
-                                %the bluetooth communication.
-                                sensor.addNeighbor(potential_neighbor_sensor);
+                                % Check if the potential neighbor is in ...
+                                %communication range.
+                                if GeometryHelper.isPointInsideCircle(...
+                                        sensor.getLocation(), ...
+                                        obj.maximum_bluetooth_range, ...
+                                        potential_neighbor_sensor.getLocation())
+
+                                    % Since in theory it is in range, we ...
+                                    %consider it as a neighbor to simulate ...
+                                    %the bluetooth communication.
+                                    sensor.addNeighbor(potential_neighbor_sensor);
+                                end
                             end
                         end
                     end
-                end
+                    
+                    sensor.howManyNeighbors()
+                end 
             end
         end
         
-        function assignNeighborsForGivenSensor(obj, sz_num, sensor)
-            subzone_sensors = obj.sensors_per_subzone(sz_num, :);
+        function assignNeighborsForGivenSensor(obj, sensor)
+            subzone_sensors = {};
+            amount_of_active_sensors_in_subzone = {};
+            
+            for sz = 1 : size(obj.subzones_variances, 1)
+                subzone_sensors{end + 1} = obj.sensors_per_subzone(sz, :);
                 
-            if ~isempty(find(cellfun('isempty', ...
-                                 subzone_sensors), 1))
-
-                empty_cell_index = find(cellfun(...
-                                            'isempty', subzone_sensors), ...
-                                        1);
-
-                amount_of_active_sensors_in_subzone = ...
-                    empty_cell_index - 1;
-            else
-                amount_of_active_sensors_in_subzone = ...
-                    length(subzone_sensors);
+                 if ~isempty(find(cellfun('isempty', ...
+                                         subzone_sensors{sz}), 1))
+                                     
+                    empty_cell_index = find(cellfun(...
+                                                'isempty', subzone_sensors{sz}), ...
+                                            1);
+                                        
+                    amount_of_active_sensors_in_subzone{end + 1} = ...
+                        empty_cell_index - 1;
+                 else
+                    amount_of_active_sensors_in_subzone{end + 1} = ...
+                        length(subzone_sensors{sz});
+                 end
             end
+            
+            for sz = 1 : size(obj.subzones_variances, 1)
+                for s = 1 : amount_of_active_sensors_in_subzone{sz}
+                    potential_neighbor_sensor = subzone_sensors{sz}{s};
 
-            for ns = 1 : amount_of_active_sensors_in_subzone
-                if sensor.getUuid() ~= subzone_sensors{ns}.getUuid()
-                    potential_neighbor_sensor = subzone_sensors{ns};
+                    if sensor.getUuid() ~= ...
+                            potential_neighbor_sensor.getUuid()
 
-                    % Check if the potential neighbor is in ...
-                    %communication range.
-                    if GeometryHelper.isPointInsideCircle(...
-                            sensor.getLocation(), ...
-                            obj.maximum_bluetooth_range, ...
-                            potential_neighbor_sensor.getLocation())
+                        % Check if the potential neighbor is in ...
+                        %communication range.
+                        if GeometryHelper.isPointInsideCircle(...
+                                sensor.getLocation(), ...
+                                obj.maximum_bluetooth_range, ...
+                                potential_neighbor_sensor.getLocation())
 
-                        % Since in theory it is in range, we ...
-                        %consider it as a neighbor to simulate ...
-                        %the bluetooth communication.
-                        sensor.addNeighbor(potential_neighbor_sensor);
-                        potential_neighbor_sensor.addNeighbor(sensor);
+                            % Since in theory it is in range, we ...
+                            %consider it as a neighbor to simulate ...
+                            %the bluetooth communication.
+                            sensor.addNeighbor(potential_neighbor_sensor);
+                            potential_neighbor_sensor.addNeighbor(sensor);
+                        end
                     end
                 end
             end
@@ -1048,8 +1068,7 @@ classdef Simulator <  handle
                                length(subzone_sensors);
                        end
                        
-                       obj.assignNeighborsForGivenSensor(sz, ...
-                                generated_sensor);
+                       obj.assignNeighborsForGivenSensor(generated_sensor);
                             
                        generated_sensor.setTimeStamp(day, hour, tick);
 
