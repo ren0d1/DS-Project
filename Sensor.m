@@ -27,11 +27,11 @@ classdef Sensor < handle
         % Rules to be applied. set to true if it should be considered
         local_abs_temp = 0;
         
-        local_der_temp = 1;
+        local_der_temp = 0;
         
         global_abs_temp = 0;
         
-        global_der_temp  = 0;
+        global_der_temp  = 1;
         
         % Number of rules applied
         no_rules = 1;
@@ -46,16 +46,16 @@ classdef Sensor < handle
         
         %max over the year according to the formula (max_temp - min_temp) /
         %8 is 3.7. putting a margin of 50%.
-        local_derivative_thresh = 5.5;
+        local_derivative_thresh = 1;
         
         % The allowed temperature difference to the mean of neighborly sensors
         % temperature. Set to 5.5 as well.
-        global_temp_threshold = 0.5;  
+        global_temp_threshold = 1;  
         
         %The allowed difference between the own temp derivative and the
         %temp derivative of neighborly sensors. set to 2 (since all sensors
         %should have a very similar trend)
-        global_derivative_thresh = 2; 
+        global_derivative_thresh = 1; 
         % END - PARAMETERS TO BE TUNED %
         
         % List of sensors in range to send data to (Subscription pattern ...
@@ -131,23 +131,34 @@ classdef Sensor < handle
             alarm_status = obj.fire_detected_local;
         end
         
-        function t_dash = get.derivative_temperature(obj)
+        function t_dash_max = get.derivative_temperature(obj)
             
-            t_dash_max = -100;
+            %t_dash_max = -100;
              % Compute difference of last element in the temperature list
              % with all the others and get the maximum difference.
-            for s = 1:length(obj.temperature_list)
-              
-                t_dash = obj.temperature_list{end} ...
-                            - obj.temperature_list{s};
-                        
-                if t_dash_max < t_dash
-                   
-                    t_dash_max = t_dash;
-                    
-                end
-                
-            end
+             
+             if length(obj.temperature_list) > 1
+                 
+                 t_dash_max =obj.temperature_list{end} ...
+                                 - obj.temperature_list{end-1};
+                             
+             else
+                 t_dash_max = 0;
+                 
+             end
+                 
+%             for s = 1:length(obj.temperature_list)
+%               
+%                 t_dash = obj.temperature_list{end} ...
+%                             - obj.temperature_list{s};
+%                         
+%                 if t_dash_max < t_dash
+%                    
+%                     t_dash_max = t_dash;
+%                     
+%                 end
+%                 
+%             end
             
 %             if length(obj.temperature_list) >=  obj.weather_data_list_length
 %                 % Compute difference of last and first element of the ...
@@ -537,6 +548,7 @@ classdef Sensor < handle
                         obj.received_data{1}.time_stamp
                     
                     temp_deriv_data(d) = obj.received_data{d}.temp_deriv;
+                
                 end
                 
                 %if obj.received_data{d}.temp_deriv == -1

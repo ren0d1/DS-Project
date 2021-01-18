@@ -16,7 +16,7 @@ classdef Simulator <  handle
         
         % Expected maximum length for a properly working bluetooth ...
         %transmission in meters.
-        maximum_bluetooth_range = 20;
+        maximum_bluetooth_range = 10;
         
         % Rate at which the sensors sign of life is sent
         sign_of_life_rate = 1; % in minutes
@@ -722,7 +722,7 @@ classdef Simulator <  handle
                         end
                     end
                     
-                    sensor.howManyNeighbors()
+                    %sensor.howManyNeighbors()
                 end 
             end
         end
