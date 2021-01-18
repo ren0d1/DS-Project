@@ -229,6 +229,11 @@ classdef Sensor < handle
             obj.compute_fireprob(); 
         end
         
+        function fixKilledFireHistoricalData(obj, real_env_temperature)
+            obj.real_env_temperature = real_env_temperature;
+            obj.temperature_list{end} = obj.measured_temperature;
+        end
+        
         function addNeighbor(obj, sensor)
             obj.neighborly_sensors{end+1} = sensor;
             

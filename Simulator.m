@@ -160,10 +160,10 @@ classdef Simulator <  handle
                             % Simulate sensor action (aka update)
                             obj.updateSensors(sz, hourly_temperature(sz), ...
                                               hourly_humidity(sz), day, hour, ...
-                                              tick);
-                                          
-                            obj.detectFires(sz);
+                                              tick);      
 
+                            obj.detectFires(sz);
+                                          
                             % Simulate random technical problem preventing ...
                             %sensor from working any longer. (TODO)
                             if rand() <= 0.0005
@@ -172,7 +172,7 @@ classdef Simulator <  handle
                             
                             % Check if sensors are destroyed due to fires
                             obj.checkSensorsBrokenByFire(sz);
-
+                            
                             % Updates GUI
                             if obj.visualizer_state
                                 obj.visualizer.updateGUI(obj.fires, ...
@@ -244,7 +244,8 @@ classdef Simulator <  handle
                         location_of_sensors_which_detected_fire = ...
                             bs.get_location_of_sensors_which_detected_fire();
                         obj.findAndExtinguishFires(...
-                                location_of_sensors_which_detected_fire);
+                                location_of_sensors_which_detected_fire, ...
+                                hourly_temperature);
                         
                         % Replace dead sensors which got notified ...
                         %to the main base (cannot be slower/faster ...
@@ -1087,9 +1088,31 @@ classdef Simulator <  handle
         end
         
         function findAndExtinguishFires(obj, ...
-                    location_of_sensors_which_detected_fire)
+                    location_of_sensors_which_detected_fire, ...
+                    real_env_temperatures)
+            % Find which active sensors are in the subzone
+            subzone_sensors = {};
+            amount_of_active_sensors_in_subzone = {};
             
-            fires_to_extinguish = [];    
+            for sz = 1 : size(obj.subzones_variances, 1)
+                subzone_sensors{end + 1} = obj.sensors_per_subzone(sz, :);
+                
+                 if ~isempty(find(cellfun('isempty', ...
+                                         subzone_sensors{sz}), 1))
+                                     
+                    empty_cell_index = find(cellfun(...
+                                                'isempty', subzone_sensors{sz}), ...
+                                            1);
+                                        
+                    amount_of_active_sensors_in_subzone{end + 1} = ...
+                        empty_cell_index - 1;
+                 else
+                    amount_of_active_sensors_in_subzone{end + 1} = ...
+                        length(subzone_sensors{sz});
+                 end
+            end
+            
+            fires_to_extinguish = []; 
                 
             for l = 1 : length(location_of_sensors_which_detected_fire)
                 for f = 1 : length(obj.fires)
@@ -1126,6 +1149,37 @@ classdef Simulator <  handle
                 idx = fires_to_extinguish(f);
                 
                 fire = obj.fires{idx - (f - 1)};
+                
+                % Fix sensors who got affected by fire
+                for sz = 1 : size(obj.subzones_variances, 1)
+                    for s = 1 : amount_of_active_sensors_in_subzone{sz}
+                        potential_sensor = subzone_sensors{sz}{s};
+                        potential_sensor_location = ...
+                            potential_sensor.getLocation();
+                        
+                        fire_location = fire.getLocation();
+                        influence_radius = fire.getRadiusOfInfluence();
+                        
+                        distance = norm(potential_sensor_location - fire_location);
+                        
+                        if distance <= influence_radius
+                            sensor_area_temperature = real_env_temperatures(sz);
+                    
+                            % Add humidity impact of fire (todo)
+                            for pf = 1 : length(obj.fires)
+                                temperature_increase = ...
+                                    obj.fires{pf}.getTemperatureIncreaseAtLocation(...
+                                        potential_sensor_location, real_env_temperatures(sz));
+
+                                sensor_area_temperature = sensor_area_temperature + ...
+                                                            temperature_increase;                       
+                            end
+                            
+                            potential_sensor.fixKilledFireHistoricalData(...
+                                sensor_area_temperature);
+                        end
+                    end
+                end
                
                 if obj.visualizer_state
                     obj.visualizer.removeFire(fire);
