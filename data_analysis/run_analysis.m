@@ -2,7 +2,7 @@ clear all; % clear all variables from memory (needed for singleton to work prope
 clc; % clear command window
 
 
-file_name = 'simulation-18-Jan-2021 12-52-15.mat';
+file_name = 'simulation-18-Jan-2021 19-21-34.mat';
 
 a = Analyzer(file_name);
  

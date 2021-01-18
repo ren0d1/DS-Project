@@ -53,18 +53,17 @@ classdef WeatherGenerator
             % Min temperature
             for t = 1 : length(regional_temperatures_min_matrix)
                 
-                variation_of_the_day = temperature_variance * rand();
+                %variation_of_the_day = temperature_variance * rand();
                 current_min_temperature = regional_temperatures_min_matrix(t);
-                regional_temperatures_min_matrix(t) = current_min_temperature + ...
-                                                        variation_of_the_day;
+                regional_temperatures_min_matrix(t) = current_min_temperature;
             end
             
             % Max temperature
             for t = 1 : length(regional_temperatures_max_matrix)
-                variation_of_the_day = temperature_variance * rand();
+                %variation_of_the_day = temperature_variance * rand();
                 current_max_temperature = regional_temperatures_max_matrix(t);
                 regional_temperatures_max_matrix(t) = current_max_temperature + ...
-                                                        variation_of_the_day;
+                                                        temperature_variance;
             end
             
             % Min humidity

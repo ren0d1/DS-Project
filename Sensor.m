@@ -55,7 +55,7 @@ classdef Sensor < handle
         %The allowed difference between the own temp derivative and the
         %temp derivative of neighborly sensors. set to 2 (since all sensors
         %should have a very similar trend)
-        global_derivative_thresh = 1; 
+        global_derivative_thresh = 3; 
         % END - PARAMETERS TO BE TUNED %
         
         % List of sensors in range to send data to (Subscription pattern ...
@@ -68,9 +68,6 @@ classdef Sensor < handle
         
         % List of outlier detections
         outlier_detections;
-        
-        % List of data packages which has been received from other sensors
-        received_data_packages;
         
         % List of data retrieved from received data packages (measured ...
         %temperature, temperature_deriv, timestamp, uuid)
@@ -431,29 +428,32 @@ classdef Sensor < handle
             obj.setTimeStamp(day, hour, tick);
             
             % Remove old (~already treated) received data
-            if ~isempty(obj.received_data)
-                reference_time = obj.received_data{1}.time_stamp;
-                time_count = 0;
-                replacement_index = 1;
-                for d = 1 : length(obj.received_data)
-                    if obj.received_data{d}.time_stamp ~= ...
-                            reference_time
-
-                        reference_time = obj.received_data{d}.time_stamp;
-
-                        if time_count == 0
-                           replacement_index = d; 
-                        end
-
-                        time_count = time_count + 1;
-                    end
-                end
-
-                if time_count == 2
-                    obj.received_data = obj.received_data(...
-                                                replacement_index + 1 : end);
-                end
-            end
+            
+            obj.received_data = {};
+            
+%             if ~isempty(obj.received_data)
+%                 reference_time = obj.received_data{1}.time_stamp;
+%                 time_count = 0;
+%                 replacement_index = 1;
+%                 for d = 1 : length(obj.received_data)
+%                     if obj.received_data{d}.time_stamp ~= ...
+%                             reference_time
+% 
+%                         reference_time = obj.received_data{d}.time_stamp;
+% 
+%                         if time_count == 0
+%                            replacement_index = d; 
+%                         end
+% 
+%                         time_count = time_count + 1;
+%                     end
+%                 end
+% 
+%                 if time_count == 2
+%                     obj.received_data = obj.received_data(...
+%                                                 replacement_index + 1 : end);
+%                 end
+%             end
        
             if length(obj.temperature_list) >=  obj.weather_data_list_length
                 % Delete first element of the list
@@ -516,7 +516,7 @@ classdef Sensor < handle
                 % Sanity check: do all retrieved messages belong to the ...
                 %same time instant?
                 if obj.received_data{d}.time_stamp == ...
-                        obj.received_data{1}.time_stamp
+                        obj.time_stamp
                     
                     temp_data(d) = obj.received_data{d}.temp;
                 end
