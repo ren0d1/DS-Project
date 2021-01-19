@@ -55,7 +55,7 @@ classdef Sensor < handle
         %The allowed difference between the own temp derivative and the
         %temp derivative of neighborly sensors. set to 2 (since all sensors
         %should have a very similar trend)
-        global_derivative_thresh = 3; 
+        global_derivative_thresh = 2; 
         % END - PARAMETERS TO BE TUNED %
         
         % List of sensors in range to send data to (Subscription pattern ...

@@ -262,9 +262,9 @@ classdef Analyzer < handle
             %obtain x axis
             x = linspace(1,num_fires, num_fires);
             
-            scatter(x,time_alives)
+            %scatter(x,time_alives)
             
-            scatter(x,radia)
+            %scatter(x,radia)
             disp('mean of time alives')
             mean(time_alives)
             
@@ -377,7 +377,11 @@ classdef Analyzer < handle
             false_positive = 0;
             true_negative = 0;
             false_negative = 0;
-
+            
+            false_positives_history = zeros(1,length(obj.sensors_history));
+            false_positives_sz_1 = 0;
+            
+            false_positives_sz_2 = 0;
             %time
             for tick = 1:length(obj.sensors_history)
 
@@ -425,6 +429,16 @@ classdef Analyzer < handle
                       elseif sensor.alarm_status == 1 && distance > obj.threshold
 
                           false_positive = false_positive + 1;
+                          false_positives_history(1,tick) = false_positives_history(1,tick)+1;
+                          
+                          if sz ==1
+                             
+                              false_positives_sz_1 = false_positives_sz_1 +1; 
+                              
+                          else
+                              
+                              false_positives_sz_2 = false_positives_sz_2 +1;
+                          end
                           
                       %if the sensor hasn´t detected the fire till then, its considered as too late.    
                       elseif ~sensor.alarm_status && distance <= obj.threshold
@@ -440,8 +454,20 @@ classdef Analyzer < handle
                end
 
             end
+            
+            
+            %obtain x axis
+            x = linspace(1,length(obj.sensors_history), length(obj.sensors_history));
+            
+            scatter(x,false_positives_history);
 
             system_matrix = [true_positive false_positive true_negative false_negative]; 
+            
+%             disp("subzones 1")
+%             false_positives_sz_1
+%             disp("subzones 2")
+%             false_positives_sz_2
+%             
         end
      
         
@@ -450,4 +476,3 @@ classdef Analyzer < handle
         
     
 end
-
