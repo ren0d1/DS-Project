@@ -1144,11 +1144,16 @@ classdef Simulator <  handle
             
             fires_to_extinguish = sort(fires_to_extinguish);
             
-            % Check if it doesn't create "holes" in the fires list
             for f  = 1 : length(fires_to_extinguish)
                 idx = fires_to_extinguish(f);
                 
                 fire = obj.fires{idx - (f - 1)};
+               
+                if obj.visualizer_state
+                    obj.visualizer.removeFire(fire);
+                end
+               
+                obj.fires(idx - (f - 1)) = [];
                 
                 % Fix sensors who got affected by fire
                 for sz = 1 : size(obj.subzones_variances, 1)
@@ -1165,7 +1170,6 @@ classdef Simulator <  handle
                         if distance <= influence_radius
                             sensor_area_temperature = real_env_temperatures(sz);
                     
-                            % Add humidity impact of fire (todo)
                             for pf = 1 : length(obj.fires)
                                 temperature_increase = ...
                                     obj.fires{pf}.getTemperatureIncreaseAtLocation(...
@@ -1180,12 +1184,6 @@ classdef Simulator <  handle
                         end
                     end
                 end
-               
-                if obj.visualizer_state
-                    obj.visualizer.removeFire(fire);
-                end
-               
-                obj.fires(idx - (f - 1)) = []; 
             end
         end
     end
