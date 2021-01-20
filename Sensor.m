@@ -29,9 +29,9 @@ classdef Sensor < handle
         
         local_der_temp = 0;
         
-        global_abs_temp = 0;
+        global_abs_temp = 1;
         
-        global_der_temp  = 1;
+        global_der_temp  = 0;
         
         % Number of rules applied
         no_rules = 1;
@@ -46,7 +46,7 @@ classdef Sensor < handle
         
         %max over the year according to the formula (max_temp - min_temp) /
         %8 is 3.7. putting a margin of 50%.
-        local_derivative_thresh = 1;
+        local_derivative_thresh = 2;
         
         % The allowed temperature difference to the mean of neighborly sensors
         % temperature. Set to 5.5 as well.
@@ -55,7 +55,7 @@ classdef Sensor < handle
         %The allowed difference between the own temp derivative and the
         %temp derivative of neighborly sensors. set to 2 (since all sensors
         %should have a very similar trend)
-        global_derivative_thresh = 2; 
+        global_derivative_thresh = 3; 
         % END - PARAMETERS TO BE TUNED %
         
         % List of sensors in range to send data to (Subscription pattern ...
@@ -432,10 +432,6 @@ classdef Sensor < handle
             obj.real_env_humidity = real_env_humidity;
             obj.setTimeStamp(day, hour, tick);
             
-            % Remove old (~already treated) received data
-            
-            obj.received_data = {};
-            
 %             if ~isempty(obj.received_data)
 %                 reference_time = obj.received_data{1}.time_stamp;
 %                 time_count = 0;
@@ -520,11 +516,7 @@ classdef Sensor < handle
             for d = 1 : length(obj.received_data)
                 % Sanity check: do all retrieved messages belong to the ...
                 %same time instant?
-                if obj.received_data{d}.time_stamp == ...
-                        obj.time_stamp
-                    
-                    temp_data(d) = obj.received_data{d}.temp;
-                end
+                temp_data(d) = obj.received_data{d}.temp;
             end
                 
             temp_mean = mean(temp_data);
@@ -549,12 +541,7 @@ classdef Sensor < handle
             for d = 1 : length(obj.received_data)
                 % Sanity check: do all retrieved messages belong to the ...
                 %same time instant?
-                if obj.received_data{d}.time_stamp == ...
-                        obj.received_data{1}.time_stamp
-                    
-                    temp_deriv_data(d) = obj.received_data{d}.temp_deriv;
-                
-                end
+                temp_deriv_data(d) = obj.received_data{d}.temp_deriv;
                 
                 %if obj.received_data{d}.temp_deriv == -1
                 %    data_corrpupted = true;
@@ -617,6 +604,9 @@ classdef Sensor < handle
             if obj.fire_detected_local
                 Sensor.notify_base_about_fire(obj.location); 
             end
+            
+            % Remove old (~already treated) received data  
+            obj.received_data = {};
         end
         
         function send_data_packages(obj)
