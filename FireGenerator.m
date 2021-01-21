@@ -96,7 +96,7 @@ classdef FireGenerator < handle
         
         function generated_fire = generateFire(~, location, sz_num, ...
                                                 humidity, wind, temperature)
-            radius = rand + 0.5;
+            radius = 0.3 + 0.5 * rand;
             radius_increase = radius;
             %radius = 1;
             generated_fire = Fire(location, sz_num, radius, radius_increase, ...

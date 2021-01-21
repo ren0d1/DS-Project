@@ -189,7 +189,7 @@ classdef Visualizer < handle
                            fire_exists = true;
 
                            obj.fires_plot{p}.MarkerSize = ...
-                               fire.getRadius();
+                               pi * fire.getRadius() * fire.getRadius() * 0.75;
                         end
                     end
                 end
@@ -203,7 +203,7 @@ classdef Visualizer < handle
                                      'MarkerFaceColor', ...
                                      [1, 0.5, 0.5], ...
                                      'MarkerSize', ...
-                                     fire.getRadius());
+                                     pi * fire.getRadius() * fire.getRadius() * 0.75);
 
                     obj.fires_plot{end+1} = fire_plot;
                 end

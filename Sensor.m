@@ -542,21 +542,23 @@ classdef Sensor < handle
             
             fire_detected = 0;          
             
-            temp_deriv_data = zeros(1, length(obj.received_data));
+            temp_deriv_data = {};
             
             for d = 1 : length(obj.received_data)
                 % Sanity check: do all retrieved messages belong to the ...
                 %same time instant?
                 if obj.received_data{d}.time_stamp == ...
                         obj.time_stamp
-                    temp_deriv_data(d) = obj.received_data{d}.temp_deriv;
+                    temp_deriv_data{end + 1} = obj.received_data{d}.temp;
                 end
                 
                 %if obj.received_data{d}.temp_deriv == -1
                 %    data_corrpupted = true;
                 %end
             end
-                
+            
+            temp_deriv_data = cell2mat(temp_deriv_data);
+            
             temp_mean_deriv = mean(temp_deriv_data);
             
             temp_diff = obj.derivative_temperature - temp_mean_deriv;
