@@ -156,14 +156,7 @@ classdef Simulator <  handle
                             obj.generateFires(sz, hourly_temperature(sz), ...
                                               hourly_humidity(sz), ...
                                               hourly_wind(sz));
-
-                            % Simulate sensor action (aka update)
-                            obj.updateSensors(sz, hourly_temperature(sz), ...
-                                              hourly_humidity(sz), day, hour, ...
-                                              tick);      
-
-                            obj.detectFires(sz);
-                                          
+                            
                             % Simulate random technical problem preventing ...
                             %sensor from working any longer. (TODO)
                             if rand() <= 0.0005
@@ -172,6 +165,13 @@ classdef Simulator <  handle
                             
                             % Check if sensors are destroyed due to fires
                             obj.checkSensorsBrokenByFire(sz);
+                                  
+                            % Simulate sensor action (aka update)
+                            obj.updateSensors(sz, hourly_temperature(sz), ...
+                                              hourly_humidity(sz), day, hour, ...
+                                              tick);      
+
+                            obj.detectFires(sz);
                             
                             % Updates GUI
                             if obj.visualizer_state

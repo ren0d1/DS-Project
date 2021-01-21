@@ -29,9 +29,9 @@ classdef Sensor < handle
         
         local_der_temp = 0;
         
-        global_abs_temp = 1;
+        global_abs_temp = 0;
         
-        global_der_temp  = 0;
+        global_der_temp  = 1;
         
         % Number of rules applied
         no_rules = 1;
@@ -46,16 +46,16 @@ classdef Sensor < handle
         
         %max over the year according to the formula (max_temp - min_temp) /
         %8 is 3.7. putting a margin of 50%.
-        local_derivative_thresh = 2;
+        local_derivative_thresh = 7;
         
         % The allowed temperature difference to the mean of neighborly sensors
         % temperature. Set to 5.5 as well.
-        global_temp_threshold = 1;  
+        global_temp_threshold = 11;  
         
         %The allowed difference between the own temp derivative and the
         %temp derivative of neighborly sensors. set to 2 (since all sensors
         %should have a very similar trend)
-        global_derivative_thresh = 3; 
+        global_derivative_thresh = 0.9; 
         % END - PARAMETERS TO BE TUNED %
         
         % List of sensors in range to send data to (Subscription pattern ...
@@ -511,14 +511,20 @@ classdef Sensor < handle
             
             fire_detected = 0;
             
-            temp_data = zeros(1, length(obj.received_data));
+            %temp_data = zeros(1, length(obj.received_data));
+            temp_data ={};
             
             for d = 1 : length(obj.received_data)
                 % Sanity check: do all retrieved messages belong to the ...
-                %same time instant?
-                temp_data(d) = obj.received_data{d}.temp;
+                % same time instant?
+                if obj.received_data{d}.time_stamp == ...
+                        obj.time_stamp
+                    temp_data{end + 1} = obj.received_data{d}.temp;
+                end
             end
-                
+            
+            temp_data = cell2mat(temp_data);
+            
             temp_mean = mean(temp_data);
             
             temp_diff = obj.measured_temperature - temp_mean;
@@ -541,7 +547,10 @@ classdef Sensor < handle
             for d = 1 : length(obj.received_data)
                 % Sanity check: do all retrieved messages belong to the ...
                 %same time instant?
-                temp_deriv_data(d) = obj.received_data{d}.temp_deriv;
+                if obj.received_data{d}.time_stamp == ...
+                        obj.time_stamp
+                    temp_deriv_data(d) = obj.received_data{d}.temp_deriv;
+                end
                 
                 %if obj.received_data{d}.temp_deriv == -1
                 %    data_corrpupted = true;
@@ -574,11 +583,11 @@ classdef Sensor < handle
                 counter = counter + obj.check_local_derivative();
             end
 
-            if obj.global_abs_temp ==1
+            if obj.global_abs_temp == 1
                 counter = counter + obj.check_global_temp();
             end
 
-            if obj.check_global_derivative == 1
+            if obj.global_der_temp == 1
                 counter = counter + obj.check_global_derivative();
             end
 
