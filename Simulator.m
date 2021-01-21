@@ -16,7 +16,7 @@ classdef Simulator <  handle
         
         % Expected maximum length for a properly working bluetooth ...
         %transmission in meters.
-        maximum_bluetooth_range = 10;
+        maximum_bluetooth_range = 15;
         
         % Rate at which the sensors sign of life is sent
         sign_of_life_rate = 1; % in minutes
@@ -157,6 +157,16 @@ classdef Simulator <  handle
                                               hourly_humidity(sz), ...
                                               hourly_wind(sz));
                             
+                            % Updates GUI
+                            if obj.visualizer_state
+                                obj.visualizer.updateGUI(obj.fires, ...
+                                                     {day, hour, ...
+                                                      fix(tick), ...
+                                                      mod(tick, 1) * 60});
+                            end
+                        end
+                        
+                        for sz = 1 : obj.amount_of_subzones
                             % Simulate random technical problem preventing ...
                             %sensor from working any longer. (TODO)
                             if rand() <= 0.0005
@@ -169,17 +179,11 @@ classdef Simulator <  handle
                             % Simulate sensor action (aka update)
                             obj.updateSensors(sz, hourly_temperature(sz), ...
                                               hourly_humidity(sz), day, hour, ...
-                                              tick);      
-
+                                              tick);
+                        end
+                        
+                        for sz = 1 : obj.amount_of_subzones
                             obj.detectFires(sz);
-                            
-                            % Updates GUI
-                            if obj.visualizer_state
-                                obj.visualizer.updateGUI(obj.fires, ...
-                                                     {day, hour, ...
-                                                      fix(tick), ...
-                                                      mod(tick, 1) * 60});
-                            end
                         end
                         
                         sensors_per_subzone_data = cell(...
