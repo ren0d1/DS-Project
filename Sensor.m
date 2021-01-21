@@ -46,7 +46,7 @@ classdef Sensor < handle
         
         %max over the year according to the formula (max_temp - min_temp) /
         %8 is 3.7. putting a margin of 50%.
-        local_derivative_thresh = 2;
+        local_derivative_thresh = 5.5;
         
         % The allowed temperature difference to the mean of neighborly sensors
         % temperature. Set to 5.5 as well.
@@ -55,7 +55,7 @@ classdef Sensor < handle
         %The allowed difference between the own temp derivative and the
         %temp derivative of neighborly sensors. set to 2 (since all sensors
         %should have a very similar trend)
-        global_derivative_thresh = 2; 
+        global_derivative_thresh = 3; 
         % END - PARAMETERS TO BE TUNED %
         
         % List of sensors in range to send data to (Subscription pattern ...
@@ -126,6 +126,14 @@ classdef Sensor < handle
         
         function alarm_status = getFireDetectionState(obj)
             alarm_status = obj.fire_detected_local;
+        end
+        
+        function temp = getMeasuredTemperature(obj)
+            temp = obj.temperature_list;
+        end
+        
+        function data = getReceivedData(obj)
+            data = obj.received_data;
         end
         
         function t_dash_max = get.derivative_temperature(obj)
