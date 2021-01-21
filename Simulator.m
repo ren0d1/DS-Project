@@ -16,7 +16,7 @@ classdef Simulator <  handle
         
         % Expected maximum length for a properly working bluetooth ...
         %transmission in meters.
-        maximum_bluetooth_range = 15;
+        maximum_bluetooth_range = 10;
         
         % Rate at which the sensors sign of life is sent
         sign_of_life_rate = 1; % in minutes
@@ -1116,33 +1116,35 @@ classdef Simulator <  handle
                  end
             end
             
-            fires_to_extinguish = []; 
-                
-            for l = 1 : length(location_of_sensors_which_detected_fire)
-                for f = 1 : length(obj.fires)
-                    fire = obj.fires{f};
-
-                    fire_location = fire.getLocation();
-                    influence_radius = fire.getRadiusOfInfluence();
-                    
-                    distance = norm(location_of_sensors_which_detected_fire{l} - fire_location);
+            fires_to_extinguish = [];
             
-                    if distance <= influence_radius
-                        already_known = false;
-                        
-                        % Check to avoid duplicates
-                        for fte = 1 : length(fires_to_extinguish)
-                            if fires_to_extinguish(fte) == f
-                               already_known = true; 
-                               break;
+            for t = 1 : 3
+                for l = 1 : length(location_of_sensors_which_detected_fire)
+                    for f = 1 : length(obj.fires)
+                        fire = obj.fires{f};
+
+                        fire_location = fire.getLocation();
+                        influence_radius = fire.getRadiusOfInfluence();
+
+                        distance = norm(location_of_sensors_which_detected_fire{l} - fire_location);
+
+                        if distance <= influence_radius
+                            already_known = false;
+
+                            % Check to avoid duplicates
+                            for fte = 1 : length(fires_to_extinguish)
+                                if fires_to_extinguish(fte) == f
+                                   already_known = true; 
+                                   break;
+                                end
                             end
-                        end
-                        
-                        if ~already_known
-                            fires_to_extinguish = [fires_to_extinguish f];
-                            break;
-                        end
-                    end 
+
+                            if ~already_known
+                                fires_to_extinguish = [fires_to_extinguish f];
+                                break;
+                            end
+                        end 
+                    end
                 end
             end
             

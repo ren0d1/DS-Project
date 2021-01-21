@@ -7,7 +7,7 @@ classdef FireGenerator < handle
     end
     
     properties (Constant)
-        max_fire_prob = 0.01;
+        max_fire_prob = 0.5;
         
         temperature_influence = 0.33;
         

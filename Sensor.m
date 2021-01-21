@@ -27,11 +27,11 @@ classdef Sensor < handle
         % Rules to be applied. set to true if it should be considered
         local_abs_temp = 0;
         
-        local_der_temp = 0;
+        local_der_temp = 1;
         
         global_abs_temp = 0;
         
-        global_der_temp  = 1;
+        global_der_temp  = 0;
         
         % Number of rules applied
         no_rules = 1;
@@ -46,7 +46,7 @@ classdef Sensor < handle
         
         %max over the year according to the formula (max_temp - min_temp) /
         %8 is 3.7. putting a margin of 50%.
-        local_derivative_thresh = 7;
+        local_derivative_thresh = 2;
         
         % The allowed temperature difference to the mean of neighborly sensors
         % temperature. Set to 5.5 as well.
@@ -55,7 +55,7 @@ classdef Sensor < handle
         %The allowed difference between the own temp derivative and the
         %temp derivative of neighborly sensors. set to 2 (since all sensors
         %should have a very similar trend)
-        global_derivative_thresh = 0.9; 
+        global_derivative_thresh = 2; 
         % END - PARAMETERS TO BE TUNED %
         
         % List of sensors in range to send data to (Subscription pattern ...
@@ -91,7 +91,7 @@ classdef Sensor < handle
         % This represents the time allowed before the lack of sign of ...
         %life becomes problematic. (Value needs to be at least 1 due to ...
         %limitations from the simulation sequential nature).
-        max_allowed_delay = 5; %minutes
+        max_allowed_delay = 2; %minutes
     end
     
     methods (Static)
@@ -495,13 +495,9 @@ classdef Sensor < handle
             fire_detected = 0;
             
             %if length(obj.temperature_list) >=  obj.weather_data_list_length
-            for i = 1 : length(obj.temperature_list)
-                deriv = obj.temperature_list{end} - obj.temperature_list{i}; 
-
-                if deriv >= obj.local_derivative_thresh
-                    fire_detected = 1;
-                    return;
-                end
+            if obj.derivative_temperature >= obj.local_derivative_thresh
+                fire_detected = 1;
+                return;
             end
             %end 
         end
@@ -549,7 +545,7 @@ classdef Sensor < handle
                 %same time instant?
                 if obj.received_data{d}.time_stamp == ...
                         obj.time_stamp
-                    temp_deriv_data{end + 1} = obj.received_data{d}.temp;
+                    temp_deriv_data{end + 1} = obj.received_data{d}.temp_deriv;
                 end
                 
                 %if obj.received_data{d}.temp_deriv == -1
@@ -557,18 +553,16 @@ classdef Sensor < handle
                 %end
             end
             
-            temp_deriv_data = cell2mat(temp_deriv_data);
-            
-            temp_mean_deriv = mean(temp_deriv_data);
-            
-            temp_diff = obj.derivative_temperature - temp_mean_deriv;
-            
-            if temp_diff >= obj.global_derivative_thresh
+            for s = 1 : length(temp_deriv_data)
+                temp_diff = obj.derivative_temperature - ...
+                    temp_deriv_data{s};
                 
-                fire_detected = 1;
-            
+                if temp_diff >= obj.global_derivative_thresh
+                
+                    fire_detected = 1;
+
+                end
             end
-            
         end
         
         % Local fire detection algorithm
