@@ -185,6 +185,81 @@ classdef Analyzer < handle
             
         end
         
+        function get_sensor_pos_alarm(obj,tick)
+            
+           
+            for sz =  1:2
+               counter = 0; 
+               for s = 1:20
+                   
+                  sensor = obj.sensors_history{1,tick}{sz,s}; 
+                    
+                  if isempty(sensor) | counter > 0
+                        
+                    continue
+                  end 
+                  
+                  if sensor.alarm_status
+
+                      counter = counter +1;
+                      sensor.temperature_list
+
+                  end 
+                  
+               end
+                
+            end
+            
+        end
+        
+        
+        function curr_sensor = get_closest_sensor(obj, location, tick)
+            
+            distance = 1000;
+            
+            curr_sensor = {};
+            for sz = 1:2
+                
+               
+                for s = 1:20
+                    
+                    sensor = obj.sensors_history{1,tick}{sz,s};
+                    
+                    if isempty(sensor)
+                        
+                        continue
+                        
+                    end
+                    dist = norm(sensor.location - location);
+                    
+                    if dist < distance
+                        
+                        distance = dist;
+                        
+                        curr_sensor = sensor;
+                        
+                    end
+                    
+                end
+                
+            end
+            
+            curr_sensor.temperature_list
+            
+            curr_sensor.location
+            
+            distance
+            
+            
+        end
+        
+        
+        
+        
+        
+        
+        
+        
         function fire_struct = ret_fire_data(obj)
 
             fire_struct = {};

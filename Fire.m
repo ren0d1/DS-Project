@@ -186,9 +186,9 @@ classdef Fire < handle
 %                                         - ((obj.temperature - environment_temperature) ...
 %                                              / obj.add_temperature_radius) ...
 %                                           * (distance - obj.radius);
+                  firefront_dist = distance - obj.radius;  
 
-
-                  temperature_increase = 0.6 * exp(-distance/1.5)*(obj.temperature - environment_temperature);
+                  temperature_increase = 0.6 * exp(-firefront_dist/1.5)*(obj.temperature - environment_temperature);
                                          
             end 
         end
