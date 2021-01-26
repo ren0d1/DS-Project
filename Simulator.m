@@ -1,6 +1,9 @@
 classdef Simulator <  handle
     %SIMULATOR Summary of this class goes here
-    %   Detailed explanation goes here
+    %   The simulator handles all necessary components to simulate ...
+    %the life of a specified region including its weather and the ...
+    %appearance of fires. It also handles to various to simulate their ...
+    %own behavior.
     properties (Constant)
         % Enable visualization. Mandatory for plane mode to work.
         visualizer_state = true;
@@ -20,6 +23,9 @@ classdef Simulator <  handle
         
         % Rate at which the sensors sign of life is sent
         sign_of_life_rate = 1; % in minutes
+        
+        % Maximum amount of fires generated per subzone during each tick
+        max_fires_generated = 3; % (up to 3 fires)
     end
     
     properties (Access = private)
@@ -51,8 +57,8 @@ classdef Simulator <  handle
         sensors_per_subzone = {};
         
         % Simulation states
-        sensors_per_subzone_at_tick_t = {};
-        fires_at_tick_t = {};
+        sensors_data_per_subzone_at_tick_t = {};
+        fires_data_at_tick_t = {};
     end
     
     methods
@@ -61,7 +67,18 @@ classdef Simulator <  handle
                                     subzones_variances, simulation_time, ...
                                     sensing_rate, starting_day, plane_mode)
             %SIMULATOR Construct an instance of this class
-            %   Detailed explanation goes here
+            %   It loads the predefined file containing the historical ...
+            %weather data of the simulated area and then prepares the ...
+            %discretized data according to the algorithms found in the ...
+            %WeatherGenerator file.
+            %   Then, based on the state of plane_mode, it initializes the ...
+            %simulation accordingly to allow, if needed, the end user ...
+            %to draw the chosen plane path or if, on the contrary, it ...
+            %automatically scatters the sensors according to the ...
+            %variance and amount_of_sensors_per_100_square_meters.
+            %   It also prepares the sensors by assigning them their ...
+            %neighbors (sensor in Bluetooth range) to allow for the ...
+            %simulation of communication through the Bluetooth protocol.
             if isstring(zones_weather_file) && ...
                     contains(zones_weather_file, ".dat")
                 
@@ -74,7 +91,7 @@ classdef Simulator <  handle
                     obj.zone_height = zone_height;
                     obj.years = years;
                     obj.subzones_variances = subzones_variances;
-                    obj.amount_of_subzones = length(obj.subzones_variances);
+                    obj.amount_of_subzones = size(obj.subzones_variances, 1);
                     obj.simulation_time = simulation_time;
                     obj.sensing_rate = sensing_rate;
                     obj.starting_day = starting_day;
@@ -87,7 +104,8 @@ classdef Simulator <  handle
                     end
                                             
                     [starting_subzones_temperature, ...
-                     starting_subzones_humidity] = obj.initSubzonesData();
+                     starting_subzones_humidity, ...
+                     starting_subzones_wind] = obj.initSubzonesData();
                  
                     if obj.visualizer_state
                         roi = obj.visualizer.initializeGUI(plane_mode, ...
@@ -128,118 +146,250 @@ classdef Simulator <  handle
             
             for day = 1 : obj.simulation_time
                 for hour = 1 : 24
-                    for sz = 1 : length(obj.subzones_variances)
+                    for sz = 1 : size(obj.subzones_variances, 1)
                         % Get hourly subzone environmental data
                         hourly_temperature(sz) = ...
                             obj.subzones_discretized_weather_data{sz}{1}(...
-                                obj.starting_day + day, hour);
+                                (obj.starting_day - 1) + day, hour);
 
                         hourly_humidity(sz) = ...
                             obj.subzones_discretized_weather_data{sz}{2}(...
-                                obj.starting_day + day, hour) ...
+                                (obj.starting_day - 1) + day, hour) ...
                             / 100; % Normalized to percentage
+                        
+                        hourly_wind(sz) = obj.subzones_discretized_weather_data{sz}{3}(...
+                                (obj.starting_day - 1) + day, hour);
                     end
                     
                     % Update simulation respectively to sensing rate
                     for tick = 1 : obj.sensing_rate : 60
                         % Update fires
-                        obj.updateFires();
+                        obj.updateFires(hourly_wind, hourly_humidity, hourly_temperature);
                         
-                        % Add slight changes for environmental data ...
-                        %throughout the sensing part (todo)
+                        % Update subzones sequentially
                         for sz = 1 : obj.amount_of_subzones
                             % Generate new fires
                             obj.generateFires(sz, hourly_temperature(sz), ...
                                               hourly_humidity(sz), ...
                                               hourly_wind(sz));
-
-                            % Simulate sensor action (aka update)
-                            obj.updateSensors(sz, hourly_temperature(sz), ...
-                                              hourly_humidity(sz), day, hour, ...
-                                              tick);
-
-                            % Simulate random technical problem preventing ...
-                            %sensor from working any longer. (TODO)
-                            if rand() <= 0.0005
-                                obj.sensorDefect(sz);
-                            end            
-
+                            
                             % Updates GUI
                             if obj.visualizer_state
                                 obj.visualizer.updateGUI(obj.fires, ...
-                                                     {day, hour, fix(tick), mod(tick, 1) * 60});
+                                                     {day, hour, ...
+                                                      fix(tick), ...
+                                                      mod(tick, 1) * 60});
                             end
                         end
                         
-                        obj.sensors_per_subzone_at_tick_t{end+1} = ...
-                            obj.sensors_per_subzone;
+                        for sz = 1 : obj.amount_of_subzones
+                            % Simulate random technical problem preventing ...
+                            %sensor from working any longer.
+                            if rand() <= 0.0005
+                                obj.sensorDefect(sz);
+                            end
+                            
+                            % Check if sensors are destroyed due to fires
+                            obj.checkSensorsBrokenByFire(sz);
+                                  
+                            % Simulate sensor actions (measuring ...
+                            %temperature, broadcasting the various ...
+                            %data, etc.)
+                            obj.updateSensors(sz, hourly_temperature(sz), ...
+                                              hourly_humidity(sz), day, hour, ...
+                                              tick);
+                        end
+                        
+                        sensors_per_subzone_data = cell(...
+                            obj.amount_of_subzones, ...
+                            size(obj.sensors_per_subzone, 2));
+                        
+                        for sz = 1 : obj.amount_of_subzones
+                            % Find which active sensors are in the subzone
+                            subzone_sensors = obj.sensors_per_subzone(sz, :);
 
-                        obj.fires_at_tick_t{end+1} = ...
-                            obj.fires;
+                            if ~isempty(find(cellfun('isempty', ...
+                                                     subzone_sensors), 1))
+
+                                empty_cell_index = find(cellfun(...
+                                                            'isempty', subzone_sensors), ...
+                                                        1);
+
+                                amount_of_active_sensors_in_subzone = ...
+                                    empty_cell_index - 1;
+                            else
+                                amount_of_active_sensors_in_subzone = ...
+                                    length(subzone_sensors);
+                            end
+                            
+                            % Save part of the sensor data needed for the ...
+                            %posterior analysis of the simulation.
+                            for s = 1 : amount_of_active_sensors_in_subzone
+                                sensor_data.uuid = ...
+                                    obj.sensors_per_subzone{sz, ...
+                                            s}.getUuid();
+                                
+                                sensor_data.location = ...
+                                    obj.sensors_per_subzone{sz, ...
+                                            s}.getLocation();
+                                        
+                                sensor_data.temperature_list = ...
+                                    obj.sensors_per_subzone{sz, ...
+                                            s}.getMeasuredTemperature();
+                                        
+                                sensor_data.rec_data = ...
+                                    obj.sensors_per_subzone{sz, ...
+                                            s}.getReceivedData();
+                                        
+                                sensors_per_subzone_data{sz, s} = ...
+                                    sensor_data;        
+                            end
+                        end
+                        
+                        % Make the sensors decide if there is a fire ...
+                        %or not.
+                        for sz = 1 : obj.amount_of_subzones
+                            obj.detectFires(sz);
+                        end
+                        
+                        for sz = 1 : obj.amount_of_subzones
+                            % Find which active sensors are in the subzone
+                            subzone_sensors = obj.sensors_per_subzone(sz, :);
+
+                            if ~isempty(find(cellfun('isempty', ...
+                                                     subzone_sensors), 1))
+
+                                empty_cell_index = find(cellfun(...
+                                                            'isempty', subzone_sensors), ...
+                                                        1);
+
+                                amount_of_active_sensors_in_subzone = ...
+                                    empty_cell_index - 1;
+                            else
+                                amount_of_active_sensors_in_subzone = ...
+                                    length(subzone_sensors);
+                            end
+
+                            % Save the rest of the sensor data needed ...
+                            %for the posterior analysis of the simulation.
+                            for s = 1 : amount_of_active_sensors_in_subzone
+                                sensor_data = ...
+                                    sensors_per_subzone_data{sz, s};
+
+                                sensor_data.alarm_status = ...
+                                    obj.sensors_per_subzone{sz, ...
+                                            s}.getFireDetectionState(); 
+                                        
+                                sensors_per_subzone_data{sz, s} = ...
+                                    sensor_data;        
+                            end
+                        end
+                        
+                        % Save the prepared sensor data to a list ...
+                        %according the corresponding tick simulated.
+                        obj.sensors_data_per_subzone_at_tick_t{end + 1} = ...
+                            sensors_per_subzone_data;
+                        
+                        % Save the fire data need for the posterior ...
+                        %analysis of the simulation
+                        fires_data = {};
+                        
+                        for f = 1 : length(obj.fires)
+                            fire.location = obj.fires{f}.getLocation();
+                            fire.radius = obj.fires{f}.getRadius();
+                            fire.time_alive = obj.fires{f}.getTimeAlive();
+                            
+                            fires_data{end + 1} = fire;
+                        end
+
+                        % Save the prepared fire data to a list ...
+                        %according the corresponding tick simulated.
+                        obj.fires_data_at_tick_t{end + 1} = ...
+                            fires_data;
+                        
+                        % Extinguish detected fires
+                        bs = BaseStation.getInstance();
+                        
+                        location_of_sensors_which_detected_fire = ...
+                            bs.getLocationOfSensorsWhichDetectedFire();
+                        obj.findAndExtinguishFires(...
+                                location_of_sensors_which_detected_fire, ...
+                                hourly_temperature);
                         
                         % Replace dead sensors which got notified ...
                         %to the main base (cannot be slower/faster ...
                         %than sign of life rate).
                         if mod(tick, obj.sign_of_life_rate) == 0
-                            bs = BaseStation.getInstance();
-                            sensors_info = bs.get_sensors_to_replace();
-                            obj.findAndReplaceSensors(sensors_info, ...
+                            sensors_info = bs.getSensorsToReplace();
+                            obj.findAndReplaceDeadSensors(sensors_info, ...
                                                         day, hour, tick);
                         end
                     end    
                 end
             end
             
-            s = obj.sensors_per_subzone_at_tick_t;
-            f = obj.fires_at_tick_t;
+            % Return the historical data of the simulation for posterior ...
+            %analyis.
+            s = obj.sensors_data_per_subzone_at_tick_t;
+            f = obj.fires_data_at_tick_t;
         end
     end
     
     methods (Access = private)
         function [starting_subzones_temperature, ...
-                  starting_subzones_humidity] = initSubzonesData(obj)
+                  starting_subzones_humidity, ...
+                  starting_subzones_wind] = initSubzonesData(obj)
                 
-            starting_subzones_temperature = zeros(length(obj.subzones_variances), 1);
-            starting_subzones_humidity = zeros(length(obj.subzones_variances), 1);
+            starting_subzones_temperature = zeros(size(obj.subzones_variances, 1), 1);
+            starting_subzones_humidity = zeros(size(obj.subzones_variances, 1), 1);
+            starting_subzones_wind = zeros(size(obj.subzones_variances, 1), 1);
             
-            amount_of_vertical_splits = ceil(sqrt(length(obj.subzones_variances)));
+            amount_of_vertical_splits = ceil(sqrt(size(obj.subzones_variances, 1)));
             amount_of_horizontal_splits = ceil(...
-                                            length(obj.subzones_variances) ...
+                                            size(obj.subzones_variances, 1) ...
                                             / amount_of_vertical_splits);
             times_reached_max_x = -1;
             
-            for sz = 1 : length(obj.subzones_variances)
+            for sz = 1 : size(obj.subzones_variances, 1)
                 % Generate slightly different weather data for the subzone ...
                 %using the provided subzone variance in temperature and ...
                 %humidity.
                 temperature_variance = obj.subzones_variances(sz, 1);
                 humidity_variance = obj.subzones_variances(sz, 2);
+                wind_variance = obj.subzones_variances(sz, 3);
                 
                 [regional_temperatures_min_matrix, ...
                     regional_temperatures_max_matrix, ...
                     regional_humidity_min_matrix, ...
-                    regional_humidity_max_matrix] = ...
+                    regional_humidity_max_matrix, ...
+                    regional_wind_min_matrix, ...
+                    regional_wind_max_matrix] = ...
                     obj.weather_generator.regionalAlteration(...
                                             temperature_variance, ...
-                                            humidity_variance);
+                                            humidity_variance, ...
+                                            wind_variance);
                                         
                 obj.subzones_weather_data{sz} = ...
                     {regional_temperatures_min_matrix; ...
                     regional_temperatures_max_matrix; ...
                     regional_humidity_min_matrix; ...
-                    regional_humidity_max_matrix};
+                    regional_humidity_max_matrix; ...
+                    regional_wind_min_matrix; ...
+                    regional_wind_max_matrix};
                 
                 % Discretize subzone weather data into hourly subzone ...
-                % temperature and humidity.
-                [hourly_temperatures_matrix, hourly_humidity_matrix] = ...
+                %temperature and humidity.
+                [hourly_temperatures_matrix, hourly_humidity_matrix, hourly_wind_matrix] = ...
                     obj.weather_generator.discretizeHourlyWeatherData(...
                         regional_temperatures_min_matrix, ...
                         regional_temperatures_max_matrix, ...
                         regional_humidity_min_matrix, ...
-                        regional_humidity_max_matrix);
+                        regional_humidity_max_matrix, ...
+                        regional_wind_min_matrix, ...
+                        regional_wind_max_matrix);
                 
                 obj.subzones_discretized_weather_data{sz} = ...
-                    {hourly_temperatures_matrix; hourly_humidity_matrix};
+                    {hourly_temperatures_matrix; hourly_humidity_matrix; hourly_wind_matrix};
                
                 % Retrieves and store the starting temperature and ...
                 %humidity of the subzone.
@@ -249,10 +399,16 @@ classdef Simulator <  handle
                 starting_subzone_humidity = ...
                     obj.subzones_discretized_weather_data{sz}{2}(...
                         obj.starting_day, 1);
+                starting_subzone_wind = ...
+                    obj.subzones_discretized_weather_data{sz}{3}(...
+                        obj.starting_day, 1);
+                    
                 starting_subzones_temperature(sz) = ...
                     starting_subzone_temperature;
                 starting_subzones_humidity(sz) = ...
                     starting_subzone_humidity;
+                starting_subzones_wind(sz) = ...
+                    starting_subzone_wind;
                 
                 % Calculate the two points coordinates representing the ...
                 %subzone area.
@@ -275,6 +431,12 @@ classdef Simulator <  handle
                                                     {{start_x, start_y}, ...
                                                     {finish_x, finish_y}};
             end
+            
+            % Save the generated simulation weather data for analytical ...
+            %purposes.
+            weather_file_name = strcat('weather-', strrep(datestr(datetime('now')), ':', '-'), '.mat');
+            weather_data = obj.subzones_discretized_weather_data;
+            save(weather_file_name, 'weather_data');
         end
         
         function generateSensorsBasedOnPlanePath(...
@@ -514,7 +676,6 @@ classdef Simulator <  handle
 
             count = 1;
             
-            % Change random scattering to match sensors_per_100_square_m (todo)
             for ten_meters_upward = 1 : ceil((finish_y - start_y) / 10)
                 if start_y + ten_meters_upward * 10 < finish_y + 10
                     for ten_meters_sideways = 1 : ...
@@ -586,106 +747,114 @@ classdef Simulator <  handle
         end 
         
         function assignNeighborsForAllSensors(obj)
-            for sz = 1 : length(obj.subzones_variances)
-                subzone_sensors = obj.sensors_per_subzone(sz, :);
+            subzone_sensors = {};
+            amount_of_active_sensors_in_subzone = {};
+            
+            for sz = 1 : size(obj.subzones_variances, 1)
+                subzone_sensors{end + 1} = obj.sensors_per_subzone(sz, :);
                 
                  if ~isempty(find(cellfun('isempty', ...
-                                         subzone_sensors), 1))
+                                         subzone_sensors{sz}), 1))
                                      
                     empty_cell_index = find(cellfun(...
-                                                'isempty', subzone_sensors), ...
+                                                'isempty', subzone_sensors{sz}), ...
                                             1);
                                         
-                    amount_of_active_sensors_in_subzone = ...
+                    amount_of_active_sensors_in_subzone{end + 1} = ...
                         empty_cell_index - 1;
-                else
-                    amount_of_active_sensors_in_subzone = ...
-                        length(subzone_sensors);
-                end
-
-                for s = 1 : amount_of_active_sensors_in_subzone
-                    sensor = subzone_sensors{s};
+                 else
+                    amount_of_active_sensors_in_subzone{end + 1} = ...
+                        length(subzone_sensors{sz});
+                 end
+            end
+            
+            for sz = 1 : size(obj.subzones_variances, 1)
+               for s = 1 : amount_of_active_sensors_in_subzone{sz}
+                    sensor = subzone_sensors{sz}{s};
                     
-                    for ns = 1 : amount_of_active_sensors_in_subzone
-                        if s ~= ns
-                            potential_neighbor_sensor = subzone_sensors{ns};
+                    for nsz = 1 : size(obj.subzones_variances, 1)
+                        for ns = 1 : amount_of_active_sensors_in_subzone{nsz}
+                            potential_neighbor_sensor = subzone_sensors{nsz}{ns};
                             
-                            % Check if the potential neighbor is in ...
-                            %communication range.
-                            if GeometryHelper.isPointInsideCircle(...
-                                    sensor.getLocation(), ...
-                                    obj.maximum_bluetooth_range, ...
-                                    potential_neighbor_sensor.getLocation())
+                            if sensor.getUuid() ~= ...
+                                    potential_neighbor_sensor.getUuid()
                                 
-                                % Since in theory it is in range, we ...
-                                %consider it as a neighbor to simulate ...
-                                %the bluetooth communication.
-                                sensor.addNeighbor(potential_neighbor_sensor);
+                                % Check if the potential neighbor is in ...
+                                %communication range.
+                                if GeometryHelper.isPointInsideCircle(...
+                                        sensor.getLocation(), ...
+                                        obj.maximum_bluetooth_range, ...
+                                        potential_neighbor_sensor.getLocation())
+
+                                    % Since in theory it is in range, we ...
+                                    %consider it as a neighbor to simulate ...
+                                    %the bluetooth communication.
+                                    sensor.addNeighbor(potential_neighbor_sensor);
+                                end
                             end
+                        end
+                    end
+                end 
+            end
+        end
+        
+        function assignNeighborsForGivenSensor(obj, sensor)
+            subzone_sensors = {};
+            amount_of_active_sensors_in_subzone = {};
+            
+            for sz = 1 : size(obj.subzones_variances, 1)
+                subzone_sensors{end + 1} = obj.sensors_per_subzone(sz, :);
+                
+                 if ~isempty(find(cellfun('isempty', ...
+                                         subzone_sensors{sz}), 1))
+                                     
+                    empty_cell_index = find(cellfun(...
+                                                'isempty', subzone_sensors{sz}), ...
+                                            1);
+                                        
+                    amount_of_active_sensors_in_subzone{end + 1} = ...
+                        empty_cell_index - 1;
+                 else
+                    amount_of_active_sensors_in_subzone{end + 1} = ...
+                        length(subzone_sensors{sz});
+                 end
+            end
+            
+            for sz = 1 : size(obj.subzones_variances, 1)
+                for s = 1 : amount_of_active_sensors_in_subzone{sz}
+                    potential_neighbor_sensor = subzone_sensors{sz}{s};
+
+                    if sensor.getUuid() ~= ...
+                            potential_neighbor_sensor.getUuid()
+
+                        % Check if the potential neighbor is in ...
+                        %communication range.
+                        if GeometryHelper.isPointInsideCircle(...
+                                sensor.getLocation(), ...
+                                obj.maximum_bluetooth_range, ...
+                                potential_neighbor_sensor.getLocation())
+
+                            % Since in theory it is in range, we ...
+                            %consider it as a neighbor to simulate ...
+                            %the bluetooth communication.
+                            sensor.addNeighbor(potential_neighbor_sensor);
+                            potential_neighbor_sensor.addNeighbor(sensor);
                         end
                     end
                 end
             end
         end
         
-        function assignNeighborsForGivenSensor(obj, sz_num, sensor)
-            subzone_sensors = obj.sensors_per_subzone(sz_num, :);
-                
-            if ~isempty(find(cellfun('isempty', ...
-                                 subzone_sensors), 1))
-
-            empty_cell_index = find(cellfun(...
-                                        'isempty', subzone_sensors), ...
-                                    1);
-
-            amount_of_active_sensors_in_subzone = ...
-                empty_cell_index - 1;
-            else
-            amount_of_active_sensors_in_subzone = ...
-                length(subzone_sensors);
-            end
-
-            for ns = 1 : amount_of_active_sensors_in_subzone
-                if sensor.getUuid() ~= subzone_sensors{ns}.getUuid()
-                    potential_neighbor_sensor = subzone_sensors{ns};
-
-                    % Check if the potential neighbor is in ...
-                    %communication range.
-                    if GeometryHelper.isPointInsideCircle(...
-                            sensor.getLocation(), ...
-                            obj.maximum_bluetooth_range, ...
-                            potential_neighbor_sensor.getLocation())
-
-                        % Since in theory it is in range, we ...
-                        %consider it as a neighbor to simulate ...
-                        %the bluetooth communication.
-                        sensor.addNeighbor(potential_neighbor_sensor);
-                        potential_neighbor_sensor.addNeighbor(sensor);
-                    end
-                end
-            end
-        end
-        
-        function updateFires(obj)
-            fires_to_remove = {};
+        function updateFires(obj, hourly_wind, hourly_humidity, hourly_temperature)            
             for f = 1 : length(obj.fires)
                 fire = obj.fires{f};
+                
+                fire_sz = fire.getSubZone();
+                fire.updateWeather(hourly_wind(fire_sz), ...
+                    hourly_humidity(fire_sz),...
+                    hourly_temperature(fire_sz));
+                
                 fire.increaseArea(obj.sensing_rate);
-
-                % Check detected fires and kill them (todo)
-                if fire.getRadius() > 5
-                    fires_to_remove{end+1} = f;
-                end
-            end
-            
-            for f = length(fires_to_remove): -1 : 1
-                fire = obj.fires{fires_to_remove{f}};
-               
-                if obj.visualizer_state
-                    obj.visualizer.removeFire(fire);
-                end
-               
-                obj.fires(fires_to_remove{f}) = []; 
             end
         end
         
@@ -694,10 +863,7 @@ classdef Simulator <  handle
                                                      humidity, wind);
             % Randomly create one or more fires             
             if rand() < obj.fire_generator.getFireProbability()
-                % Makes sure that the randi expression doesn't get ...
-                %executed at each iteration in order to prevent weird ...
-                %behavior and unnecessary computation overhead. 
-                amount_of_fires_created = randi(3); % (up to 3 fires) 
+                amount_of_fires_created = randi(obj.max_fires_generated); 
                 
                 for f = 1 : amount_of_fires_created
                     start_x = obj.subzones_min_and_max_coordinates{sz_num}{1}{1};
@@ -709,7 +875,8 @@ classdef Simulator <  handle
                     origin = [randi([round(start_x), round(finish_x)],1), ...
                               randi([round(start_y), round(finish_y)],1)];
 
-                    generated_fire = obj.fire_generator.generateFire(origin);
+                    generated_fire = obj.fire_generator.generateFire(...
+                            origin, sz_num, humidity, wind, temperature);
 
                     obj.fires{end + 1} = generated_fire;
                 end
@@ -719,7 +886,7 @@ classdef Simulator <  handle
         function updateSensors(obj, sz_num, temperature, humidity, ...
                                day, hour, tick)
             % Check if there are any active sensor in the subzone
-            if ~isempty(obj.sensors_per_subzone) && ...
+            if ~isempty(obj.sensors_per_subzone{1}) && ...
                     size(obj.sensors_per_subzone, 1) >= sz_num
                 
                 % Find which active sensors are in the subzone
@@ -745,7 +912,6 @@ classdef Simulator <  handle
                     
                     sensor_area_temperature = temperature;
                     
-                    % Add humidity impact of fire (todo)
                     for f = 1 : length(obj.fires)
                         temperature_increase = ...
                             obj.fires{f}.getTemperatureIncreaseAtLocation(...
@@ -762,16 +928,46 @@ classdef Simulator <  handle
                     %at the expected rate which may differ from sensing ...
                     %rate.
                     if mod(tick, obj.sign_of_life_rate) == 0
-                        sensor.send_sign_of_life();
-                        sensor.check_sign_of_life();
+                        sensor.sendSignOfLife();
+                        sensor.checkSignOfLife();
                     end   
+                end
+            end
+        end
+        
+        function detectFires(obj, sz_num)
+            % Check if there are any active sensor in the subzone
+            if ~isempty(obj.sensors_per_subzone{1}) && ...
+                    size(obj.sensors_per_subzone, 1) >= sz_num
+                
+                % Find which active sensors are in the subzone
+                subzone_sensors = obj.sensors_per_subzone(sz_num, :);
+                
+                if ~isempty(find(cellfun('isempty', ...
+                                         subzone_sensors), 1))
+                                     
+                    empty_cell_index = find(cellfun(...
+                                                'isempty', subzone_sensors), ...
+                                            1);
+                                        
+                    amount_of_active_sensors_in_subzone = ...
+                        empty_cell_index - 1;
+                else
+                    amount_of_active_sensors_in_subzone = ...
+                        length(subzone_sensors);
+                end
+                
+                % Update each sensor of the subzone
+                for s = 1 : amount_of_active_sensors_in_subzone
+                    sensor = subzone_sensors{s};
+                    sensor.detectFire();
                 end
             end
         end
         
         function sensorDefect(obj, sz_num)
             % Check if there are any active sensor in the subzone
-            if ~isempty(obj.sensors_per_subzone) && ...
+            if ~isempty(obj.sensors_per_subzone{1}) && ...
                     size(obj.sensors_per_subzone, 1) >= sz_num
                 
                 % Find which active sensors are in the subzone
@@ -799,17 +995,86 @@ classdef Simulator <  handle
                     obj.visualizer.removeSensor(sensor);
                 end
                 
-                % Remove sesor from simulator list
+                % Remove sensor from simulator list
                 obj.sensors_per_subzone{sz_num, ...
                         amount_of_active_sensors_in_subzone}(1) = [];
             end
         end
         
-        function findAndReplaceSensors(obj, sensors_info, day, hour, tick)
-            for sii = 1 : length(sensors_info)
-                [starting_subzones_temperature, ...
-                     starting_subzones_humidity] = obj.initSubzonesData();
+        function checkSensorsBrokenByFire(obj, sz_num)
+            % Check if there are any active sensor in the subzone
+            if ~isempty(obj.sensors_per_subzone{1}) && ...
+                    size(obj.sensors_per_subzone, 1) >= sz_num
                 
+                % Find which active sensors are in the subzone
+                subzone_sensors = obj.sensors_per_subzone(sz_num, :);
+                
+                if ~isempty(find(cellfun('isempty', ...
+                                         subzone_sensors), 1))
+                                     
+                    empty_cell_index = find(cellfun(...
+                                                'isempty', subzone_sensors), ...
+                                            1);
+                                        
+                    amount_of_active_sensors_in_subzone = ...
+                        empty_cell_index - 1;
+                else
+                    amount_of_active_sensors_in_subzone = ...
+                        length(subzone_sensors);
+                end
+                
+                indices_of_sensors_to_remove = [];
+                
+                for s = amount_of_active_sensors_in_subzone : - 1 : 1
+                    sensor = obj.sensors_per_subzone{sz_num, s};
+                    
+                    for f = 1 : length(obj.fires)
+                        fire = obj.fires{f};
+
+                        fire_location = fire.getLocation();
+                        radius = fire.getRadius();
+
+                        distance = norm(sensor.getLocation() - fire_location);
+                        
+                        % Then sensor is inside the flames
+                        if distance <= radius && ...
+                                ~ismember(s, indices_of_sensors_to_remove)
+                            
+                            indices_of_sensors_to_remove = ...
+                                [indices_of_sensors_to_remove s];
+                        end 
+                    end
+                end
+                
+                for c = 1 : length(indices_of_sensors_to_remove)
+                    idx = indices_of_sensors_to_remove(c);
+                    
+                    sensor = obj.sensors_per_subzone{sz_num, idx};
+                                               
+                    % Remove sensor from gui
+                    if obj.visualizer_state
+                        obj.visualizer.removeSensor(sensor);
+                    end
+
+                    % Remove sensor from simulator list
+                    obj.sensors_per_subzone{sz_num, idx}(1) = [];
+                   
+                    for s = idx : (amount_of_active_sensors_in_subzone - c)
+                        obj.sensors_per_subzone{sz_num, s}(1) = ...
+                            obj.sensors_per_subzone{sz_num, s + 1}(1);
+                    end
+                    
+                    if idx ~= amount_of_active_sensors_in_subzone - (c - 1)
+                        obj.sensors_per_subzone{sz_num, ...
+                                amount_of_active_sensors_in_subzone - ...
+                                (c - 1)}(1) = [];
+                    end
+                end
+            end
+        end
+        
+        function findAndReplaceDeadSensors(obj, sensors_info, day, hour, tick)
+            for sii = 1 : length(sensors_info)
                 for sz = 1 : obj.amount_of_subzones
                     start_x = ...
                        obj.subzones_min_and_max_coordinates{sz}{1}{1};
@@ -827,7 +1092,7 @@ classdef Simulator <  handle
                            location(2) >= round(start_y) && ...
                            location(2) <= round(finish_y)
                        
-                       % Only way to create a do while loop in matlab :')
+                       % Works as a do while loop
                        while 1
                            new_x = randi(...
                             [round(location(1) - obj.variance / 2), ...
@@ -849,8 +1114,10 @@ classdef Simulator <  handle
                        new_location = [new_x, new_y];
                        
                        generated_sensor = Sensor(new_location, ...
-                               starting_subzones_temperature(sz), ...
-                               starting_subzones_humidity(sz) / 100);
+                               obj.subzones_discretized_weather_data{sz}{...
+                                    1}(obj.starting_day, 1), ...
+                               obj.subzones_discretized_weather_data{sz}{...
+                                    2}(obj.starting_day, 1) / 100);
                            
                        % Find which active sensors are in the subzone
                        subzone_sensors = obj.sensors_per_subzone(sz, :);
@@ -868,8 +1135,7 @@ classdef Simulator <  handle
                                length(subzone_sensors);
                        end
                        
-                       obj.assignNeighborsForGivenSensor(sz, ...
-                                generated_sensor);
+                       obj.assignNeighborsForGivenSensor(generated_sensor);
                             
                        generated_sensor.setTimeStamp(day, hour, tick);
 
@@ -885,6 +1151,110 @@ classdef Simulator <  handle
                    end
                end
            end
+        end
+        
+        function findAndExtinguishFires(obj, ...
+                    location_of_sensors_which_detected_fire, ...
+                    real_env_temperatures)
+            % Find which active sensors are in the subzone
+            subzone_sensors = {};
+            amount_of_active_sensors_in_subzone = {};
+            
+            for sz = 1 : size(obj.subzones_variances, 1)
+                subzone_sensors{end + 1} = obj.sensors_per_subzone(sz, :);
+                
+                 if ~isempty(find(cellfun('isempty', ...
+                                         subzone_sensors{sz}), 1))
+                                     
+                    empty_cell_index = find(cellfun(...
+                                                'isempty', subzone_sensors{sz}), ...
+                                            1);
+                                        
+                    amount_of_active_sensors_in_subzone{end + 1} = ...
+                        empty_cell_index - 1;
+                 else
+                    amount_of_active_sensors_in_subzone{end + 1} = ...
+                        length(subzone_sensors{sz});
+                 end
+            end
+            
+            fires_to_extinguish = [];
+            
+            for t = 1 : 3
+                for l = 1 : length(location_of_sensors_which_detected_fire)
+                    for f = 1 : length(obj.fires)
+                        fire = obj.fires{f};
+
+                        fire_location = fire.getLocation();
+                        influence_radius = fire.getRadiusOfInfluence();
+
+                        distance = norm(location_of_sensors_which_detected_fire{l} - fire_location);
+
+                        if distance <= influence_radius
+                            already_known = false;
+
+                            % Check to avoid duplicates
+                            for fte = 1 : length(fires_to_extinguish)
+                                if fires_to_extinguish(fte) == f
+                                   already_known = true; 
+                                   break;
+                                end
+                            end
+
+                            if ~already_known
+                                fires_to_extinguish = [fires_to_extinguish f];
+                                break;
+                            end
+                        end 
+                    end
+                end
+            end
+            
+            fires_to_extinguish = sort(fires_to_extinguish);
+            
+            for f  = 1 : length(fires_to_extinguish)
+                idx = fires_to_extinguish(f);
+                
+                fire = obj.fires{idx - (f - 1)};
+               
+                if obj.visualizer_state
+                    obj.visualizer.removeFire(fire);
+                end
+               
+                obj.fires(idx - (f - 1)) = [];
+                
+                % Fix sensors who got affected by fire to avoid wrong ...
+                %behavior due to a fire "disappearing" from one tick to ...
+                %the next one
+                for sz = 1 : size(obj.subzones_variances, 1)
+                    for s = 1 : amount_of_active_sensors_in_subzone{sz}
+                        potential_sensor = subzone_sensors{sz}{s};
+                        potential_sensor_location = ...
+                            potential_sensor.getLocation();
+                        
+                        fire_location = fire.getLocation();
+                        influence_radius = fire.getRadiusOfInfluence();
+                        
+                        distance = norm(potential_sensor_location - fire_location);
+                        
+                        if distance <= influence_radius
+                            sensor_area_temperature = real_env_temperatures(sz);
+                    
+                            for pf = 1 : length(obj.fires)
+                                temperature_increase = ...
+                                    obj.fires{pf}.getTemperatureIncreaseAtLocation(...
+                                        potential_sensor_location, real_env_temperatures(sz));
+
+                                sensor_area_temperature = sensor_area_temperature + ...
+                                                            temperature_increase;                       
+                            end
+                            
+                            potential_sensor.fixKilledFireHistoricalData(...
+                                sensor_area_temperature);
+                        end
+                    end
+                end
+            end
         end
     end
 end

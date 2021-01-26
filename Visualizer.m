@@ -1,6 +1,7 @@
 classdef Visualizer < handle
     %VISUALIZER Summary of this class goes here
-    %   Detailed explanation goes here
+    %   This class handles all the necessary components to display the ...
+    %what is happening in the simulation in real time.
     
     properties (Access = private)
         % Display parameters
@@ -89,7 +90,7 @@ classdef Visualizer < handle
             set(obj.UIAxes, 'ydir', 'normal');
            
             % Make sure every plot from this point onwards will be added
-            % alongside the existing ones
+            %alongside the existing ones
             hold(obj.UIAxes, 'on');
           
             % Display subzones (regions) of interest
@@ -189,7 +190,7 @@ classdef Visualizer < handle
                            fire_exists = true;
 
                            obj.fires_plot{p}.MarkerSize = ...
-                               fire.getRadius();
+                               3 * pi * fire.getRadius() * 0.9;
                         end
                     end
                 end
@@ -203,7 +204,7 @@ classdef Visualizer < handle
                                      'MarkerFaceColor', ...
                                      [1, 0.5, 0.5], ...
                                      'MarkerSize', ...
-                                     fire.getRadius());
+                                     3 * pi * fire.getRadius() * 0.9);
 
                     obj.fires_plot{end+1} = fire_plot;
                 end

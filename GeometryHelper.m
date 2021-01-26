@@ -1,6 +1,6 @@
 classdef GeometryHelper
     %GEOMETRYHELPER Summary of this class goes here
-    %   Detailed explanation goes here
+    %   This class contains helpful geometrical functions.
     methods (Static)
         function [m, b] = findLineSlopeAndIntersect(x1, y1, x2, y2)
             m = (y2-y1) / (x2-x1);

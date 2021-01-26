@@ -1,23 +1,8 @@
-GROUP TODO |
-------------
-Detect fire - H
-notify detected fire
-kill fire when notified
-include temp, humidity in fire prob
-include relative humidity in fire spread and temperature
-	temperature goes up, then rel hum goes down but if rel hum is high then fire 'burn'/spreads slower
-do analytics
-add comments ~ descriptions
-harmonize naming convention
-
 ----------
 OPTIONAL |
 ----------
-update weather variations
-include temp, humidity and wind in fire prob + spread factor
 create network packets decoding problems and handle them
 simulate how the "Main" device gets contacted for notification and how it then contacts the base
-Change neighbors so they can interact between subzones
 
 -------
 NOTES |

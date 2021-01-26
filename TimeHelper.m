@@ -1,6 +1,7 @@
 classdef TimeHelper
     %TIMEHELPER Summary of this class goes here
-    %   Detailed explanation goes here
+    %   This class contains helpful functions to deal with time in the ...
+    %simulation represented using ticks.
     methods (Static)
         function are_equal = findIfTimeStampsAreEqual(time_stamp_1, ...
                                                         time_stamp_2)
@@ -18,11 +19,13 @@ classdef TimeHelper
         function delay_is_okay = findIfTimeStampsAreNotTooMuchApart(...
                                     time_stamp_1, delay, time_stamp_2)
             % time_stamp_1 needs to be the most recent one
-            % seconds are not used because delay is in minutes                    
+            % Seconds are not used because delay is in minutes                    
             time_stamp_1_value = time_stamp_1(1) * 24 * 60 + ...
-                                 time_stamp_1(2) * 60 + time_stamp_1(3);
+                                 time_stamp_1(2) * 60 + ...
+                                 time_stamp_1(3);
             time_stamp_2_value = time_stamp_2(1) * 24 * 60 + ...
-                                 time_stamp_2(2) * 60 + time_stamp_2(3);
+                                 time_stamp_2(2) * 60 + ...
+                                 time_stamp_2(3);
                              
             delay_is_okay = false;
             if time_stamp_1_value - delay < time_stamp_2_value    

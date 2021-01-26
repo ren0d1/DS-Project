@@ -1,6 +1,8 @@
 classdef Sensor < handle
     %SENSOR Summary of this class goes here
-    %   Detailed explanation goes here
+    %   The sensor contains all the logic necessary to simulate the ...
+    %expected hardware components as well as the logic used for fire ...
+    %detection in a local and distributed manner.
     properties (Access = private)
         % Unique ID
         uuid;
@@ -13,17 +15,52 @@ classdef Sensor < handle
         real_env_humidity; %is denoted as relative humidity in percentage
         
         %   PROPERTIES RELATED TO LOCAL FIRE DETECTION ALGORITHM   %     
-        % Necessary amount of data to start outlier detection
-        weather_data_list_length = 10;
-        
-        % Determines how much the new value has to differ from the mean ...
-        %to be considered as an outlier.
-        outfactor = 1;
+        % Length of historical data saved
+        weather_data_list_length = 5;
         
         fire_detected_local = false;
-        fire_detected_global = false;
-        temperature_list = [1 2 3 4 5 6 7 8 9 10];
-        humidity_list = [1 2 3 4 5 6 7 8 9 10]; 
+        temperature_list = {};
+        humidity_list = {};
+        
+        % Rules to be applied. set to true if it should be considered
+        local_abs_temp = 0;
+        
+        local_der_temp = 0;
+        
+        global_abs_temp = 0;
+        
+        global_der_temp  = 1;
+        
+        % Number of rules applied
+        no_rules = 1;
+        
+        % Set if AND or OR mode should be used
+        and_mode = false;
+        
+        % PARAMETERS TO BE TUNED %
+        % Temperature that is used as a threshold for fire detection.
+        % The minimal recommended value is corresponding to the global ...
+        %max temperature according to the weather data.
+        local_temp_threshold = 48; %[Celsius]
+        
+        % Temperature difference used as a threshold for fire detection.
+        % Max over the year according to the formula (max_temp - min_temp) /
+        %8 is 3.7. putting a margin of 50%.
+        local_derivative_thresh = 6;
+        
+        % Temperature difference used as a threshold for fire detection.
+        % This must be set accordingly to the expected maximum ...
+        %difference in temperature between the one obtained by the ...
+        %sensor and the one received from his neighbors to avoid false ...
+        %positives.
+        global_temp_threshold = 10;  
+        
+        % Temperature difference used as a threshold for fire detection.
+        % The allowed difference between the own temp derivative and the
+        %temp derivative of neighborly sensors. set to 2 (since all sensors
+        %should have a very similar trend)
+        global_derivative_thresh = 2; 
+        % END - PARAMETERS TO BE TUNED %
         
         % List of sensors in range to send data to (Subscription pattern ...
         %is used to notify the sensors which are in range to receive the ...
@@ -32,15 +69,17 @@ classdef Sensor < handle
         
         % List of data packages which is shared with other sensors.
         data_packages;
+        
         % List of outlier detections
         outlier_detections;
-        % List of data packages which has been received from other sensors
-        received_data_packages;
+        
         % List of data retrieved from received data packages (measured ...
-        %temperature, measured humidity, timestamp, uuid)
+        %temperature, temperature_deriv, time_stamp, uuid)
         received_data;
+        
         % List of sign of life received
         received_sign_of_life;
+        
         % Stores which time stamps have already been analyzed
         analyzed_time_instance;
     end
@@ -48,11 +87,11 @@ classdef Sensor < handle
     properties (Dependent)
         measured_temperature; %degrees
         measured_humidity; %is denoted as relative humidity in percentage
+        
+        derivative_temperature;
     end
     
     properties (Constant)
-        base_station = BaseStation.getInstance();
-        
         % This represents the time allowed before the lack of sign of ...
         %life becomes problematic. (Value needs to be at least 1 due to ...
         %limitations from the simulation sequential nature).
@@ -60,12 +99,14 @@ classdef Sensor < handle
     end
     
     methods (Static)
-        function notify_base_about_fire(fire)
-            Sensor.base_station.listen_for_alert(1, fire);
+        function notifyBaseAboutFire(info)
+            base_station = BaseStation.getInstance();
+            base_station.listenForAlert(1, info);
         end 
         
-        function notify_base_about_dead_sensor(sensor_info)
-            Sensor.base_station.listen_for_alert(2, sensor_info);
+        function notifyBaseAboutDeadSensor(sensor_info)
+            base_station = BaseStation.getInstance();
+            base_station.listenForAlert(2, sensor_info);
         end 
     end
     
@@ -87,14 +128,38 @@ classdef Sensor < handle
            uuid = erase(string(obj.uuid), "-");
         end
         
+        function alarm_status = getFireDetectionState(obj)
+            alarm_status = obj.fire_detected_local;
+        end
+        
+        function temp = getMeasuredTemperature(obj)
+            temp = obj.temperature_list;
+        end
+        
+        function data = getReceivedData(obj)
+            data = obj.received_data;
+        end
+        
+        function t_dash_max = get.derivative_temperature(obj)
+             % Compute the difference of last element in the temperature ...
+             %list with the previous one.
+             if length(obj.temperature_list) > 1
+                 
+                 t_dash_max = obj.temperature_list{end} ...
+                                 - obj.temperature_list{end-1};        
+             else
+                 t_dash_max = 0;
+             end
+        end
+        
         % Measurements for temperature and humidity are modelled ...
         %accordingly to the sensor at this weblink:
         % https://www.sensirion.com/en/environmental-sensors/humidity-sensors/digital-humidity-sensor-shtc3-our-new-standard-for-consumer-electronics/
          
         % Models the behavior of the temperature sensor
         function measured_temperature = get.measured_temperature(obj)           
-           % 125 degrees is the max. temperature which can be measured by ...
-           %the sensor.
+           % 125 degrees is the maximum temperature which can be ...
+           %measured by the sensor.
            if(obj.real_env_temperature > 125)
               measured_temperature = 124.6 + 0.4 * rand(); 
               
@@ -102,7 +167,6 @@ classdef Sensor < handle
                measured_temperature = (obj.real_env_temperature - 0.2) + ...
                                         0.4 * rand();
            end
-           
         end
         
         function measured_humidity = get.measured_humidity(obj)
@@ -131,25 +195,42 @@ classdef Sensor < handle
         end
         
         function update(obj, real_env_temperature, real_env_humidity, ...
-                        day, hour, tick)
-            % Update temperature and humidity
+                        day, hour, tick)   
+            % Updates all relevant data to ensure a proper behavior ...
+            %from the sensor. It also measures the temperature and ...
+            %stores it to be able to be sent to neighborly sensors.
+            obj.updateDatastructures(real_env_temperature, real_env_humidity, ...
+                                        day, hour, tick);
+            
+            % Broadcast the necessary data to nearby sensors
+            obj.sendDataPackages();
+        end
+        
+        function detectFire(obj)
+            obj.compute_fireprob(); 
+        end
+        
+        % Needed to fix problematic behavior resulting from the ...
+        %irrealistic "instatanious" death of a fire after it has been ...
+        %detected
+        function fixKilledFireHistoricalData(obj, real_env_temperature)
             obj.real_env_temperature = real_env_temperature;
-            obj.real_env_humidity = real_env_humidity;
-            obj.time_stamp = [day, hour, fix(tick), round(mod(tick, 1) * 60)];
-            
-            obj.compute_fireprob();
-            obj.send_data_packages();
-            
-            if ~isempty(obj.received_data)
-                obj.compute_fireprob_distributed();
-            end
+            obj.temperature_list{end} = obj.measured_temperature;
         end
         
         function addNeighbor(obj, sensor)
             obj.neighborly_sensors{end+1} = sensor;
+            
+            % Sort by distance
+            dist = cellfun(@(x)norm(obj.getLocation() - ...
+                x.getLocation()), obj.neighborly_sensors);
+            
+            [~,sortIdx] = sort(dist);
+            
+            obj.neighborly_sensors = obj.neighborly_sensors(sortIdx);
         end
-        
-        function receive_data_package(obj, LE_frame)
+
+        function receiveDataPackage(obj, LE_frame)
             % Second argument is L2CAP config
             [leFrameDecodeStatus, ~, payload] = bleL2CAPFrameDecode(LE_frame);
             
@@ -157,7 +238,7 @@ classdef Sensor < handle
             if strcmp(leFrameDecodeStatus, 'Success') % Decoding is successful
                 payload_length = length(payload(:, 1));
                 
-                % Check if 32 bytes, then it is only a sign of life
+                % Check if 16 bytes, then it is only a sign of life
                 if payload_length == 16
                     transformed_data = join(string(payload(1 : ...
                                                 payload_length, :)), '');
@@ -181,7 +262,7 @@ classdef Sensor < handle
 
                     % Processes the payload from the received data ...
                     %package to extract the sensor informations formatted as ...
-                    %(relative temperature, relative humidity, ...
+                    %(temperature, temperature derivative, ...
                     %timestamp_day, timestamp_hour, timestamp_minute)
                     %and then stores them in the sensor list received_data.
 
@@ -189,14 +270,14 @@ classdef Sensor < handle
                     transformed_data = join(string(...
                         payload(1 : 8, :)), '');
 
-                    neighborly_sensor_information.temperature = ...
+                    neighborly_sensor_information.temp = ...
                         hex2num(transformed_data);
 
-                    % Retrieve humidity
+                    % Retrieve temperature derivative
                     transformed_data = join(string(payload(...
                         9 : 16, :)), '');
 
-                    neighborly_sensor_information.humidity = ...
+                    neighborly_sensor_information.temp_deriv = ...
                         hex2num(transformed_data);
 
                     % Retrieve timestamp
@@ -225,7 +306,7 @@ classdef Sensor < handle
                     neighborly_sensor_information.time_stamp(1) = ...
                         hex2dec(transformed_data);
 
-                    % UUID (32 bytes)
+                    % UUID (16 bytes)
                     transformed_data = join(string(payload(payload_length - 15 : ...
                                                 payload_length, :)), '');
                     neighborly_sensor_information.uuid = transformed_data;
@@ -235,12 +316,11 @@ classdef Sensor < handle
                 end
             else
                 % Notify that the decoding failed
-                % Handle this case (todo)
                 fprintf('L2CAP decoding status is: %s\n', leFrameDecodeStatus);
             end
         end
         
-        function send_sign_of_life(obj)
+        function sendSignOfLife(obj)
             % Frame config for LE Frames
             cfgL2CAP = bleL2CAPFrameConfig('ChannelIdentifier', '0035');
             
@@ -271,11 +351,11 @@ classdef Sensor < handle
             % Collects bluetooth messages for simulation purposes, but ...
             %in reality it would be processed in parallel.
             for s = 1 : length(obj.neighborly_sensors)
-                obj.neighborly_sensors{s}.receive_data_package(LE_frame);
+                obj.neighborly_sensors{s}.receiveDataPackage(LE_frame);
             end
         end
                  
-        function check_sign_of_life(obj)
+        function checkSignOfLife(obj)
             indexes_of_missing_sensors = {};
             
             % The delay is checked to leave some room for 'lost' ...
@@ -301,13 +381,13 @@ classdef Sensor < handle
                     end
                 end
                 
-                if ~known_sensor_sent_message
+                if ~known_sensor_sent_message && known_sensor_index ~= 0
                     notification.uuid = ...
                         obj.neighborly_sensors{known_sensor_index}.getUuid();
                     notification.location = ...
                         obj.neighborly_sensors{known_sensor_index}.getLocation();
                     
-                    Sensor.notify_base_about_dead_sensor(notification);
+                    Sensor.notifyBaseAboutDeadSensor(notification);
                     
                     obj.neighborly_sensors(known_sensor_index) = [];
                     
@@ -323,174 +403,157 @@ classdef Sensor < handle
     end
     
     methods (Access = private)
-        % Local fire detection algorithm
-        function compute_fireprob(obj)
-            % Set local variables   
-            % Booleans as indicators to detect if there is a fire
-            temp_anomaly = false;
-            humidity_anomaly = false;
-            obj.fire_detected_local = false;
-
+        function updateDatastructures(obj, real_env_temperature, ...
+                                        real_env_humidity, day, hour, tick)
+            % Update timestamp and environment temperature of the sensor
+            obj.real_env_temperature = real_env_temperature;
+            obj.real_env_humidity = real_env_humidity;
+            obj.setTimeStamp(day, hour, tick);
+       
             if length(obj.temperature_list) >=  obj.weather_data_list_length
-                % Fix temperature and humidity measurements for processing.
-                current_temperature = obj.measured_temperature;
-                current_humidity = obj.measured_humidity;
+                % Delete first element of the list
+                obj.temperature_list = obj.temperature_list(2:end);
+                obj.humidity_list = obj.humidity_list(2:end); 
+            end
+            
+            % Update temperature & humidity list 
+            obj.temperature_list{end+1} = obj.measured_temperature;
+            obj.humidity_list{end+1} = obj.measured_humidity;
+            
+            % Update data packages
+            if length(obj.data_packages) >= obj.weather_data_list_length
+                % Delete first element of both lists
+                obj.data_packages = obj.data_packages(2:end);
+                obj.outlier_detections = obj.outlier_detections(2:end);
+            end
                 
-                % Compute current mean and standard deviation for ... 
-                %temperature and judge if there is an anomaly or not.
-                current_temp_mean = mean(obj.temperature_list);
-                current_temp_std = std(obj.temperature_list);
+            data_package.temp = obj.measured_temperature;
+            data_package.temp_deriv = obj.derivative_temperature;
+            data_package.time_stamp = obj.time_stamp;
 
-                temp_lowerbound = current_temp_mean - obj.outfactor * ...
-                                                        current_temp_std;
-                temp_upperbound = current_temp_mean + obj.outfactor * ...
-                                                        current_temp_std;
+            obj.data_packages{end + 1} = data_package;          
+        end
+        
+        % Check happening if local_abs_temp = true;
+        function fire_detected = checkLocalThreshold(obj)
+            if(obj.local_temp_threshold <= obj.temperature_list{end})
+                fire_detected = 1;
+            else
+                fire_detected = 0;
+            end
+        end 
+        
+        % Check happening if local_der_temp = true;
+        function fire_detected = checkLocalDerivative(obj)
+            fire_detected = 0;
+            
+            if obj.derivative_temperature >= obj.local_derivative_thresh
+                fire_detected = 1;
+                return;
+            end
+            %end 
+        end
+        
+        % Check happening if global_abs_temp = true;
+        function fire_detected = checkGlobalTemp(obj)
+            
+            fire_detected = 0;
+            
+            temp_data ={};
+            
+            for d = 1 : length(obj.received_data)
+                % Sanity check: do all retrieved messages belong to the ...
+                % same time instant?
+                if obj.received_data{d}.time_stamp == ...
+                        obj.time_stamp
+                    temp_data{end + 1} = obj.received_data{d}.temp;
+                end
+            end
+            
+            temp_data = cell2mat(temp_data);
+            
+            temp_mean = mean(temp_data);
+            
+            temp_diff = obj.measured_temperature - temp_mean;
+            
+            if temp_diff >= obj.global_temp_threshold
+                fire_detected = 1;
+            end
+        end
+        
+        % Check happening if global_der_temp = true;
+        function fire_detected = checkGlobalDerivative(obj)
+            
+            fire_detected = 0;          
+            
+            temp_deriv_data = {};
+            
+            for d = 1 : length(obj.received_data)
+                % Sanity check: do all retrieved messages belong to the ...
+                %same time instant?
+                if obj.received_data{d}.time_stamp == ...
+                        obj.time_stamp
+                    temp_deriv_data{end + 1} = obj.received_data{d}.temp_deriv;
+                end
+            end
+            
+            for s = 1 : length(temp_deriv_data)
+                temp_diff = obj.derivative_temperature - ...
+                    temp_deriv_data{s};
+                
+                if temp_diff >= obj.global_derivative_thresh
+                    fire_detected = 1;
+                end
+            end
+        end
+        
+        % Sensor fire detection algorithms
+        function compute_fireprob(obj)
+            % Variables needed
+            obj.fire_detected_local = false;
+            counter = 0;
 
-                % Check if the measured temperature is outside expected ...
-                %boundaries.
-                if(current_temperature > temp_upperbound) || ...
-                        (current_temperature < temp_lowerbound)
-                    temp_anomaly = true;
-                end   
+            if obj.local_abs_temp == 1
+                counter = counter + obj.checkLocalThreshold();
+            end
 
-                % Compute current mean and standard deviation for ...
-                %humidity and judge if there is an anomaly or not.
-                current_humidity_mean = mean(obj.humidity_list);
-                current_humidity_std = std(obj.humidity_list);
+            if obj.local_der_temp == 1
+                counter = counter + obj.checkLocalDerivative();
+            end
 
-                humidity_lowerbound = current_humidity_mean - ...
-                                        obj.outfactor * current_humidity_std;
-                humidity_upperbound = current_humidity_mean + ...
-                                        obj.outfactor * current_humidity_std;
+            if obj.global_abs_temp == 1
+                counter = counter + obj.checkGlobalTemp();
+            end
 
-                % Check if the measured humidity is outside expected ...
-                %boundaries.
-                if(current_humidity > humidity_upperbound) || ...
-                        (current_humidity < humidity_lowerbound)
-                    humidity_anomaly = true;
-                end  
+            if obj.global_der_temp == 1
+                counter = counter + obj.checkGlobalDerivative();
+            end
 
-                if humidity_anomaly && temp_anomaly
+            if obj.and_mode == true
+                if obj.no_rules == counter
+                   obj.fire_detected_local = true;
+                end
+            else
+                if counter > 0
                     obj.fire_detected_local = true;
                 end
-                
-                % Determine relative position of the temperature/ humidity ...
-                %measurement to the mean, expressed in standard deviation ...
-                %distance.
-                rel_pos_temp = (current_temperature - ...
-                                    current_temp_mean) / current_temp_std;
-                rel_pos_humidity = (current_humidity - ...
-                                        current_humidity_mean) / ...
-                                            current_humidity_std;
-
-                % Check if we are keeping a list of data_packages ...
-                %matching size requirements.
-                if length(obj.data_packages) >= obj.weather_data_list_length
-                    % Delete first element of both lists
-                    obj.data_packages(1) = [];
-                    obj.outlier_detections(1) = [];
-                end
-                
-                data_package.rel_pos_temp = rel_pos_temp;
-                data_package.rel_pos_humidity = rel_pos_humidity;
-                data_package.time_stamp = obj.time_stamp;
-                
-                obj.data_packages{end + 1} = data_package;
-                                        
-                outlier_detection.fire_detected_local = ...
-                    obj.fire_detected_local;
-                outlier_detection.time_stamp = obj.time_stamp;
-                                            
-                obj.outlier_detections{end + 1} = outlier_detection;
-         
-                % Delete first element of both lists
-                obj.humidity_list(:,1) = [];
-                obj.temperature_list(:,1) = [];
-                
-                % Update humidity list and temperature list 
-                obj.temperature_list = [obj.temperature_list current_temperature];
-                obj.humidity_list = [obj.humidity_list current_humidity];
             end
+            
+            % Outlier detection arrays + time stamp
+            outlier_detection.fire_detected_local = obj.fire_detected_local;
+            outlier_detection.time_stamp = obj.time_stamp;
+
+            obj.outlier_detections{end + 1} = outlier_detection;
+            
+            if obj.fire_detected_local
+                Sensor.notifyBaseAboutFire(obj.location); 
+            end
+            
+            % Remove old (~already treated) received data  
+            obj.received_data = {};
         end
         
-        % Distributed fire detection algorithm
-        % Logic: only performs data analysis if the local decision layer ...
-        %has detected a fire.
-        function compute_fireprob_distributed(obj)
-            % Sanity check: do all retrieved messages belong to one time
-            %instant?
-            for d = 1 : length(obj.received_data)
-                if obj.received_data{d}.time_stamp ~= ...
-                        obj.received_data{1}.time_stamp
-                    
-                    error("not all received messages belong to the same time stamp!")
-                end
-            end
-            
-            obj.analyzed_time_instance = obj.received_data{1}.time_stamp;
-            
-            % Find the respective local outlier detection variable
-            row = -1;
-            for o = 1 : length(obj.outlier_detections)
-                if obj.outlier_detections{o}.time_stamp == ...
-                        obj.analyzed_time_instance
-                    
-                    row = o;
-                    break;
-                end
-            end
-            
-            % If there was no local temperature AND humidity outliers ...
-            %(fire detected), there is no analysis done.
-            if row ~= -1 && obj.outlier_detections{row}.fire_detected_local
-                
-                humidity_trend_outlier = false;
-                temp_trend_outlier = false;
-                
-                % Prepare data received from other sensors for analysis
-                temperature_data = obj.received_data{1}.humidity;
-                humidity_data = obj.received_data{1}.temperature;
-                
-                % Calculate mean and standard deviation for both
-                temp_mean = mean(temperature_data);
-                temp_std_dev = std(temperature_data);
-                humidity_mean = mean(humidity_data);
-                humidity_std_dev = std(humidity_data);
-                
-                % Retrieve own temperature trend and humidity trend
-                for o = length(obj.data_packages)
-                    if obj.data_packages{o}.time_stamp == ...
-                            obj.analyzed_time_instance
-
-                        row = o;
-                        break;
-                    end
-                end
-                
-                local_temperature_trend = obj.data_packages{row}.rel_pos_temp;
-                local_humidity_trend = obj.data_packages{row}.rel_pos_humidity;
-                
-                temp_distance = (local_temperature_trend - temp_mean) / ...
-                                    temp_std_dev;
-                humidity_distance = (local_humidity_trend - humidity_mean) / ...
-                                        humidity_std_dev;
-                
-                if temp_distance > obj.outfactor
-                    temp_trend_outlier = true;
-                end
-                
-                
-                if humidity_distance > obj.outfactor
-                    humidity_trend_outlier = true;
-                end
-                
-                if temp_trend_outlier && humidity_trend_outlier
-                    obj.fire_detected_global = true;
-                end
-            end 
-        end
-        
-        function send_data_packages(obj)
+        function sendDataPackages(obj)
             % Frame config for LE Frames
             cfgL2CAP = bleL2CAPFrameConfig('ChannelIdentifier', '0035');
             
@@ -498,20 +561,20 @@ classdef Sensor < handle
             data_package = obj.data_packages{end};
             
             % Prepare data to send as a payload
-            hex_rel_pos_temp = num2hex(data_package.rel_pos_temp);
-            hex_rel_pos_humidity = num2hex(data_package.rel_pos_humidity);
+            hex_temp = num2hex(data_package.temp);
+            hex_temp_deriv = num2hex(data_package.temp_deriv);
             
             hex_day = dec2hex(data_package.time_stamp(1));
             hex_hour = dec2hex(data_package.time_stamp(2));
             hex_minute = dec2hex(data_package.time_stamp(3));
             hex_second = dec2hex(data_package.time_stamp(4));
 
-            if mod(length(hex_rel_pos_temp), 2) == 1
-                hex_rel_pos_temp = strcat('0', hex_rel_pos_temp);
+            if mod(length(hex_temp), 2) == 1
+                hex_temp = strcat('0', hex_temp);
             end
 
-            if mod(length(hex_rel_pos_humidity), 2) == 1
-                hex_rel_pos_humidity = strcat('0', hex_rel_pos_humidity);
+            if mod(length(hex_temp_deriv), 2) == 1
+                hex_temp_deriv = strcat('0', hex_temp_deriv);
             end
 
             if mod(length(hex_day), 2) == 1
@@ -533,8 +596,7 @@ classdef Sensor < handle
             uuid_to_share = erase(string(obj.uuid), "-");
 
             % Concatenate the data
-            complete_payload_string = strcat(hex_rel_pos_temp, ...
-                        hex_rel_pos_humidity, ...
+            complete_payload_string = strcat(hex_temp, hex_temp_deriv, ...
                         hex_day, hex_hour, hex_minute, hex_second, ...
                         uuid_to_share);
             
@@ -562,7 +624,7 @@ classdef Sensor < handle
             % Collects bluetooth messages for simulation purposes, but ...
             %in reality it would be processed in parallel.
             for s = 1 : length(obj.neighborly_sensors)
-                obj.neighborly_sensors{s}.receive_data_package(LE_frame);
+                obj.neighborly_sensors{s}.receiveDataPackage(LE_frame);
             end
         end
     end
