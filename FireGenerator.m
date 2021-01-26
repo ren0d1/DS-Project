@@ -14,9 +14,9 @@ classdef FireGenerator < handle
         humidity_influence = 0.33;
         
         wind_influence = 0.33;
+        
         % Min & max temperature/humidity according to:
         %https://weatherspark.com/y/144563/Average-Weather-in-Newcastle-Australia-Year-Round
-        
         max_temperature = 43.6; %[Celsius]
         min_temperature = -4.6; %[Celsius]
 
@@ -25,7 +25,7 @@ classdef FireGenerator < handle
     end
     
     methods (Static)
-        function wind_parameter = retrieve_windpar(wind)
+        function wind_parameter = retrieveWindParameter(wind)
             if wind < 2 
                 wind_parameter = 0;
             elseif wind <= 5
@@ -71,9 +71,8 @@ classdef FireGenerator < handle
             %and temperature parameter is max if the current_temperature =
             %max_temperature, and 0 if current_temperature = min_temperature,
             %which is the annually minimum of the weather data
-            
-            
-            wind_parameter = FireGenerator.retrieve_windpar(current_wind);
+                       
+            wind_parameter = FireGenerator.retrieveWindParameter(current_wind);
             
             %Humidity is scaled to %, thats why its divided by 100
             humidity_parameter = 1 - ((current_humidity - obj.min_humidity) / ...
@@ -96,9 +95,10 @@ classdef FireGenerator < handle
         
         function generated_fire = generateFire(~, location, sz_num, ...
                                                 humidity, wind, temperature)
+            % Creates a fire with a starting radius ranging from 0.3 to ...
+            %0.8 meters
             radius = 0.3 + 0.5 * rand;
             radius_increase = radius;
-            %radius = 1;
             generated_fire = Fire(location, sz_num, radius, radius_increase, ...
                                     humidity, wind, temperature);
         end

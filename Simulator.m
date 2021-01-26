@@ -1,6 +1,9 @@
 classdef Simulator <  handle
     %SIMULATOR Summary of this class goes here
-    %   Detailed explanation goes here
+    %   The simulator handles all necessary components to simulate ...
+    %the life of a specified region including its weather and the ...
+    %appearance of fires. It also handles to various to simulate their ...
+    %own behavior.
     properties (Constant)
         % Enable visualization. Mandatory for plane mode to work.
         visualizer_state = true;
@@ -20,6 +23,9 @@ classdef Simulator <  handle
         
         % Rate at which the sensors sign of life is sent
         sign_of_life_rate = 1; % in minutes
+        
+        % Maximum amount of fires generated per subzone during each tick
+        max_fires_generated = 3; % (up to 3 fires)
     end
     
     properties (Access = private)
@@ -61,7 +67,18 @@ classdef Simulator <  handle
                                     subzones_variances, simulation_time, ...
                                     sensing_rate, starting_day, plane_mode)
             %SIMULATOR Construct an instance of this class
-            %   Detailed explanation goes here
+            %   It loads the predefined file containing the historical ...
+            %weather data of the simulated area and then prepares the ...
+            %discretized data according to the algorithms found in the ...
+            %WeatherGenerator file.
+            %   Then, based on the state of plane_mode, it initializes the ...
+            %simulation accordingly to allow, if needed, the end user ...
+            %to draw the chosen plane path or if, on the contrary, it ...
+            %automatically scatters the sensors according to the ...
+            %variance and amount_of_sensors_per_100_square_meters.
+            %   It also prepares the sensors by assigning them their ...
+            %neighbors (sensor in Bluetooth range) to allow for the ...
+            %simulation of communication through the Bluetooth protocol.
             if isstring(zones_weather_file) && ...
                     contains(zones_weather_file, ".dat")
                 
@@ -149,8 +166,7 @@ classdef Simulator <  handle
                         % Update fires
                         obj.updateFires(hourly_wind, hourly_humidity, hourly_temperature);
                         
-                        % Add slight changes for environmental data ...
-                        %throughout the sensing part (todo)
+                        % Update subzones sequentially
                         for sz = 1 : obj.amount_of_subzones
                             % Generate new fires
                             obj.generateFires(sz, hourly_temperature(sz), ...
@@ -168,7 +184,7 @@ classdef Simulator <  handle
                         
                         for sz = 1 : obj.amount_of_subzones
                             % Simulate random technical problem preventing ...
-                            %sensor from working any longer. (TODO)
+                            %sensor from working any longer.
                             if rand() <= 0.0005
                                 obj.sensorDefect(sz);
                             end
@@ -176,7 +192,9 @@ classdef Simulator <  handle
                             % Check if sensors are destroyed due to fires
                             obj.checkSensorsBrokenByFire(sz);
                                   
-                            % Simulate sensor action (aka update)
+                            % Simulate sensor actions (measuring ...
+                            %temperature, broadcasting the various ...
+                            %data, etc.)
                             obj.updateSensors(sz, hourly_temperature(sz), ...
                                               hourly_humidity(sz), day, hour, ...
                                               tick);
@@ -203,7 +221,9 @@ classdef Simulator <  handle
                                 amount_of_active_sensors_in_subzone = ...
                                     length(subzone_sensors);
                             end
-
+                            
+                            % Save part of the sensor data needed for the ...
+                            %posterior analysis of the simulation.
                             for s = 1 : amount_of_active_sensors_in_subzone
                                 sensor_data.uuid = ...
                                     obj.sensors_per_subzone{sz, ...
@@ -226,13 +246,11 @@ classdef Simulator <  handle
                             end
                         end
                         
+                        % Make the sensors decide if there is a fire ...
+                        %or not.
                         for sz = 1 : obj.amount_of_subzones
                             obj.detectFires(sz);
                         end
-                        
-%                         sensors_per_subzone_data = cell(...
-%                             obj.amount_of_subzones, ...
-%                             size(obj.sensors_per_subzone, 2));
                         
                         for sz = 1 : obj.amount_of_subzones
                             % Find which active sensors are in the subzone
@@ -252,19 +270,9 @@ classdef Simulator <  handle
                                     length(subzone_sensors);
                             end
 
+                            % Save the rest of the sensor data needed ...
+                            %for the posterior analysis of the simulation.
                             for s = 1 : amount_of_active_sensors_in_subzone
-%                                 sensor_data.uuid = ...
-%                                     obj.sensors_per_subzone{sz, ...
-%                                             s}.getUuid();
-%                                 
-%                                 sensor_data.alarm_status = ...
-%                                     obj.sensors_per_subzone{sz, ...
-%                                             s}.getFireDetectionState();
-%                                 
-%                                 sensor_data.location = ...
-%                                     obj.sensors_per_subzone{sz, ...
-%                                             s}.getLocation();
-
                                 sensor_data = ...
                                     sensors_per_subzone_data{sz, s};
 
@@ -277,9 +285,13 @@ classdef Simulator <  handle
                             end
                         end
                         
+                        % Save the prepared sensor data to a list ...
+                        %according the corresponding tick simulated.
                         obj.sensors_data_per_subzone_at_tick_t{end + 1} = ...
                             sensors_per_subzone_data;
                         
+                        % Save the fire data need for the posterior ...
+                        %analysis of the simulation
                         fires_data = {};
                         
                         for f = 1 : length(obj.fires)
@@ -290,6 +302,8 @@ classdef Simulator <  handle
                             fires_data{end + 1} = fire;
                         end
 
+                        % Save the prepared fire data to a list ...
+                        %according the corresponding tick simulated.
                         obj.fires_data_at_tick_t{end + 1} = ...
                             fires_data;
                         
@@ -297,7 +311,7 @@ classdef Simulator <  handle
                         bs = BaseStation.getInstance();
                         
                         location_of_sensors_which_detected_fire = ...
-                            bs.get_location_of_sensors_which_detected_fire();
+                            bs.getLocationOfSensorsWhichDetectedFire();
                         obj.findAndExtinguishFires(...
                                 location_of_sensors_which_detected_fire, ...
                                 hourly_temperature);
@@ -306,14 +320,16 @@ classdef Simulator <  handle
                         %to the main base (cannot be slower/faster ...
                         %than sign of life rate).
                         if mod(tick, obj.sign_of_life_rate) == 0
-                            sensors_info = bs.get_sensors_to_replace();
-                            obj.findAndReplaceSensors(sensors_info, ...
+                            sensors_info = bs.getSensorsToReplace();
+                            obj.findAndReplaceDeadSensors(sensors_info, ...
                                                         day, hour, tick);
                         end
                     end    
                 end
             end
             
+            % Return the historical data of the simulation for posterior ...
+            %analyis.
             s = obj.sensors_data_per_subzone_at_tick_t;
             f = obj.fires_data_at_tick_t;
         end
@@ -362,7 +378,7 @@ classdef Simulator <  handle
                     regional_wind_max_matrix};
                 
                 % Discretize subzone weather data into hourly subzone ...
-                % temperature and humidity.
+                %temperature and humidity.
                 [hourly_temperatures_matrix, hourly_humidity_matrix, hourly_wind_matrix] = ...
                     obj.weather_generator.discretizeHourlyWeatherData(...
                         regional_temperatures_min_matrix, ...
@@ -416,6 +432,8 @@ classdef Simulator <  handle
                                                     {finish_x, finish_y}};
             end
             
+            % Save the generated simulation weather data for analytical ...
+            %purposes.
             weather_file_name = strcat('weather-', strrep(datestr(datetime('now')), ':', '-'), '.mat');
             weather_data = obj.subzones_discretized_weather_data;
             save(weather_file_name, 'weather_data');
@@ -658,7 +676,6 @@ classdef Simulator <  handle
 
             count = 1;
             
-            % Change random scattering to match sensors_per_100_square_m (todo)
             for ten_meters_upward = 1 : ceil((finish_y - start_y) / 10)
                 if start_y + ten_meters_upward * 10 < finish_y + 10
                     for ten_meters_sideways = 1 : ...
@@ -777,8 +794,6 @@ classdef Simulator <  handle
                             end
                         end
                     end
-                    
-                    %sensor.howManyNeighbors()
                 end 
             end
         end
@@ -848,10 +863,7 @@ classdef Simulator <  handle
                                                      humidity, wind);
             % Randomly create one or more fires             
             if rand() < obj.fire_generator.getFireProbability()
-                % Makes sure that the randi expression doesn't get ...
-                %executed at each iteration in order to prevent weird ...
-                %behavior and unnecessary computation overhead. 
-                amount_of_fires_created = randi(3); % (up to 3 fires) 
+                amount_of_fires_created = randi(obj.max_fires_generated); 
                 
                 for f = 1 : amount_of_fires_created
                     start_x = obj.subzones_min_and_max_coordinates{sz_num}{1}{1};
@@ -900,7 +912,6 @@ classdef Simulator <  handle
                     
                     sensor_area_temperature = temperature;
                     
-                    % Add humidity impact of fire (todo)
                     for f = 1 : length(obj.fires)
                         temperature_increase = ...
                             obj.fires{f}.getTemperatureIncreaseAtLocation(...
@@ -917,8 +928,8 @@ classdef Simulator <  handle
                     %at the expected rate which may differ from sensing ...
                     %rate.
                     if mod(tick, obj.sign_of_life_rate) == 0
-                        sensor.send_sign_of_life();
-                        sensor.check_sign_of_life();
+                        sensor.sendSignOfLife();
+                        sensor.checkSignOfLife();
                     end   
                 end
             end
@@ -1062,7 +1073,7 @@ classdef Simulator <  handle
             end
         end
         
-        function findAndReplaceSensors(obj, sensors_info, day, hour, tick)
+        function findAndReplaceDeadSensors(obj, sensors_info, day, hour, tick)
             for sii = 1 : length(sensors_info)
                 for sz = 1 : obj.amount_of_subzones
                     start_x = ...
@@ -1081,7 +1092,7 @@ classdef Simulator <  handle
                            location(2) >= round(start_y) && ...
                            location(2) <= round(finish_y)
                        
-                       % Only way to create a do while loop in matlab :')
+                       % Works as a do while loop
                        while 1
                            new_x = randi(...
                             [round(location(1) - obj.variance / 2), ...
@@ -1212,7 +1223,9 @@ classdef Simulator <  handle
                
                 obj.fires(idx - (f - 1)) = [];
                 
-                % Fix sensors who got affected by fire
+                % Fix sensors who got affected by fire to avoid wrong ...
+                %behavior due to a fire "disappearing" from one tick to ...
+                %the next one
                 for sz = 1 : size(obj.subzones_variances, 1)
                     for s = 1 : amount_of_active_sensors_in_subzone{sz}
                         potential_sensor = subzone_sensors{sz}{s};

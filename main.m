@@ -27,10 +27,16 @@ subzones_variances = [-1, 3, 2; 5, 2, 1]; % temperature_variance, ...
 
                                          
 zone_image = "sub_area_of_interest";
-%zone_width = 20000; %m
-%zone_height = 21250; %m
 zone_width = 40; %m
 zone_height = 42.5; %m
+
+% True scale of the provided "sub_area_of_interest"
+%zone_width = 20000; %m
+%zone_height = 21250; %m
+
+% True scale of the provided "area_of_interest"
+%zone_width = 80000; %m
+%zone_height = 85000; %m
 
 simulation_time = 1; % In days
 sensing_rate = 1; % In minutes for simulation purposes
@@ -49,8 +55,3 @@ s = Simulator(zones_weather_file, zone_image, zone_width, zone_height, ...
 % Save simulation history
 file_name = strcat('simulation-', strrep(datestr(datetime('now')), ':', '-'), '.mat');
 save(file_name, 'sensors_history', 'fires_history');
-
-%load('simulation-22-Dec-2020 15-49-15.mat', 'sensors_history', 'fires_history');
-
-%a = Analyzer(sensors_history, fires_history);
-%tbd = a.analyze();

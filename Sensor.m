@@ -1,6 +1,8 @@
 classdef Sensor < handle
     %SENSOR Summary of this class goes here
-    %   Detailed explanation goes here
+    %   The sensor contains all the logic necessary to simulate the ...
+    %expected hardware components as well as the logic used for fire ...
+    %detection in a local and distributed manner.
     properties (Access = private)
         % Unique ID
         uuid;
@@ -13,12 +15,8 @@ classdef Sensor < handle
         real_env_humidity; %is denoted as relative humidity in percentage
         
         %   PROPERTIES RELATED TO LOCAL FIRE DETECTION ALGORITHM   %     
-        % Necessary amount of data to start outlier detection
+        % Length of historical data saved
         weather_data_list_length = 5;
-        
-        % Determines how much the new value has to differ from the mean ...
-        %to be considered as an outlier.
-        outfactor = 1;
         
         fire_detected_local = false;
         temperature_list = {};
@@ -27,11 +25,11 @@ classdef Sensor < handle
         % Rules to be applied. set to true if it should be considered
         local_abs_temp = 0;
         
-        local_der_temp = 1;
+        local_der_temp = 0;
         
         global_abs_temp = 0;
         
-        global_der_temp  = 0;
+        global_der_temp  = 1;
         
         % Number of rules applied
         no_rules = 1;
@@ -40,22 +38,28 @@ classdef Sensor < handle
         and_mode = false;
         
         % PARAMETERS TO BE TUNED %
-        % Temperature that is a threshold for fire detection
-        % set to global max temperature according to data
-        local_temp_threshold = 50; %[Celsius]
+        % Temperature that is used as a threshold for fire detection.
+        % The minimal recommended value is corresponding to the global ...
+        %max temperature according to the weather data.
+        local_temp_threshold = 48; %[Celsius]
         
-        %max over the year according to the formula (max_temp - min_temp) /
+        % Temperature difference used as a threshold for fire detection.
+        % Max over the year according to the formula (max_temp - min_temp) /
         %8 is 3.7. putting a margin of 50%.
-        local_derivative_thresh = 5.5;
+        local_derivative_thresh = 6;
         
-        % The allowed temperature difference to the mean of neighborly sensors
-        % temperature. Set to 5.5 as well.
-        global_temp_threshold = 11;  
+        % Temperature difference used as a threshold for fire detection.
+        % This must be set accordingly to the expected maximum ...
+        %difference in temperature between the one obtained by the ...
+        %sensor and the one received from his neighbors to avoid false ...
+        %positives.
+        global_temp_threshold = 10;  
         
-        %The allowed difference between the own temp derivative and the
+        % Temperature difference used as a threshold for fire detection.
+        % The allowed difference between the own temp derivative and the
         %temp derivative of neighborly sensors. set to 2 (since all sensors
         %should have a very similar trend)
-        global_derivative_thresh = 3; 
+        global_derivative_thresh = 2; 
         % END - PARAMETERS TO BE TUNED %
         
         % List of sensors in range to send data to (Subscription pattern ...
@@ -70,7 +74,7 @@ classdef Sensor < handle
         outlier_detections;
         
         % List of data retrieved from received data packages (measured ...
-        %temperature, temperature_deriv, timestamp, uuid)
+        %temperature, temperature_deriv, time_stamp, uuid)
         received_data;
         
         % List of sign of life received
@@ -91,18 +95,18 @@ classdef Sensor < handle
         % This represents the time allowed before the lack of sign of ...
         %life becomes problematic. (Value needs to be at least 1 due to ...
         %limitations from the simulation sequential nature).
-        max_allowed_delay = 2; %minutes
+        max_allowed_delay = 5; %minutes
     end
     
     methods (Static)
-        function notify_base_about_fire(info)
+        function notifyBaseAboutFire(info)
             base_station = BaseStation.getInstance();
-            base_station.listen_for_alert(1, info);
+            base_station.listenForAlert(1, info);
         end 
         
-        function notify_base_about_dead_sensor(sensor_info)
+        function notifyBaseAboutDeadSensor(sensor_info)
             base_station = BaseStation.getInstance();
-            base_station.listen_for_alert(2, sensor_info);
+            base_station.listenForAlert(2, sensor_info);
         end 
     end
     
@@ -137,45 +141,15 @@ classdef Sensor < handle
         end
         
         function t_dash_max = get.derivative_temperature(obj)
-            
-            %t_dash_max = -100;
-             % Compute difference of last element in the temperature list
-             % with all the others and get the maximum difference.
-             
+             % Compute the difference of last element in the temperature ...
+             %list with the previous one.
              if length(obj.temperature_list) > 1
                  
-                 t_dash_max =obj.temperature_list{end} ...
-                                 - obj.temperature_list{end-1};
-                             
+                 t_dash_max = obj.temperature_list{end} ...
+                                 - obj.temperature_list{end-1};        
              else
                  t_dash_max = 0;
-                 
              end
-                 
-%             for s = 1:length(obj.temperature_list)
-%               
-%                 t_dash = obj.temperature_list{end} ...
-%                             - obj.temperature_list{s};
-%                         
-%                 if t_dash_max < t_dash
-%                    
-%                     t_dash_max = t_dash;
-%                     
-%                 end
-%                 
-%             end
-            
-%             if length(obj.temperature_list) >=  obj.weather_data_list_length
-%                 % Compute difference of last and first element of the ...
-%                 %temperature stored in the temperature list.
-%                 
-%                 
-%                 t_dash = obj.temperature_list{obj.weather_data_list_length} ...
-%                             - obj.temperature_list{1};
-%             else
-%                 t_dash = -1;
-%             end
-            
         end
         
         % Measurements for temperature and humidity are modelled ...
@@ -184,8 +158,8 @@ classdef Sensor < handle
          
         % Models the behavior of the temperature sensor
         function measured_temperature = get.measured_temperature(obj)           
-           % 125 degrees is the max. temperature which can be measured by ...
-           %the sensor.
+           % 125 degrees is the maximum temperature which can be ...
+           %measured by the sensor.
            if(obj.real_env_temperature > 125)
               measured_temperature = 124.6 + 0.4 * rand(); 
               
@@ -222,21 +196,23 @@ classdef Sensor < handle
         
         function update(obj, real_env_temperature, real_env_humidity, ...
                         day, hour, tick)   
-            % Need of a function that updates all relevant datapoints
-            obj.update_datastructures(real_env_temperature, real_env_humidity, ...
+            % Updates all relevant data to ensure a proper behavior ...
+            %from the sensor. It also measures the temperature and ...
+            %stores it to be able to be sent to neighborly sensors.
+            obj.updateDatastructures(real_env_temperature, real_env_humidity, ...
                                         day, hour, tick);
-                                    
-            % Need a function that computes the derivative (trend) of the
-            %temperature.
-            %--> done; get method
             
-            obj.send_data_packages();
+            % Broadcast the necessary data to nearby sensors
+            obj.sendDataPackages();
         end
         
         function detectFire(obj)
             obj.compute_fireprob(); 
         end
         
+        % Needed to fix problematic behavior resulting from the ...
+        %irrealistic "instatanious" death of a fire after it has been ...
+        %detected
         function fixKilledFireHistoricalData(obj, real_env_temperature)
             obj.real_env_temperature = real_env_temperature;
             obj.temperature_list{end} = obj.measured_temperature;
@@ -253,12 +229,8 @@ classdef Sensor < handle
             
             obj.neighborly_sensors = obj.neighborly_sensors(sortIdx);
         end
-        
-        function size = howManyNeighbors(obj)
-             size = length(obj.neighborly_sensors);
-        end
-        
-        function receive_data_package(obj, LE_frame)
+
+        function receiveDataPackage(obj, LE_frame)
             % Second argument is L2CAP config
             [leFrameDecodeStatus, ~, payload] = bleL2CAPFrameDecode(LE_frame);
             
@@ -344,12 +316,11 @@ classdef Sensor < handle
                 end
             else
                 % Notify that the decoding failed
-                % Handle this case (todo)
                 fprintf('L2CAP decoding status is: %s\n', leFrameDecodeStatus);
             end
         end
         
-        function send_sign_of_life(obj)
+        function sendSignOfLife(obj)
             % Frame config for LE Frames
             cfgL2CAP = bleL2CAPFrameConfig('ChannelIdentifier', '0035');
             
@@ -380,11 +351,11 @@ classdef Sensor < handle
             % Collects bluetooth messages for simulation purposes, but ...
             %in reality it would be processed in parallel.
             for s = 1 : length(obj.neighborly_sensors)
-                obj.neighborly_sensors{s}.receive_data_package(LE_frame);
+                obj.neighborly_sensors{s}.receiveDataPackage(LE_frame);
             end
         end
                  
-        function check_sign_of_life(obj)
+        function checkSignOfLife(obj)
             indexes_of_missing_sensors = {};
             
             % The delay is checked to leave some room for 'lost' ...
@@ -410,14 +381,13 @@ classdef Sensor < handle
                     end
                 end
                 
-                % How can known_sensor_index be 0? (TODO)
                 if ~known_sensor_sent_message && known_sensor_index ~= 0
                     notification.uuid = ...
                         obj.neighborly_sensors{known_sensor_index}.getUuid();
                     notification.location = ...
                         obj.neighborly_sensors{known_sensor_index}.getLocation();
                     
-                    Sensor.notify_base_about_dead_sensor(notification);
+                    Sensor.notifyBaseAboutDeadSensor(notification);
                     
                     obj.neighborly_sensors(known_sensor_index) = [];
                     
@@ -433,36 +403,12 @@ classdef Sensor < handle
     end
     
     methods (Access = private)
-        function update_datastructures(obj, real_env_temperature, ...
+        function updateDatastructures(obj, real_env_temperature, ...
                                         real_env_humidity, day, hour, tick)
             % Update timestamp and environment temperature of the sensor
             obj.real_env_temperature = real_env_temperature;
             obj.real_env_humidity = real_env_humidity;
             obj.setTimeStamp(day, hour, tick);
-            
-%             if ~isempty(obj.received_data)
-%                 reference_time = obj.received_data{1}.time_stamp;
-%                 time_count = 0;
-%                 replacement_index = 1;
-%                 for d = 1 : length(obj.received_data)
-%                     if obj.received_data{d}.time_stamp ~= ...
-%                             reference_time
-% 
-%                         reference_time = obj.received_data{d}.time_stamp;
-% 
-%                         if time_count == 0
-%                            replacement_index = d; 
-%                         end
-% 
-%                         time_count = time_count + 1;
-%                     end
-%                 end
-% 
-%                 if time_count == 2
-%                     obj.received_data = obj.received_data(...
-%                                                 replacement_index + 1 : end);
-%                 end
-%             end
        
             if length(obj.temperature_list) >=  obj.weather_data_list_length
                 % Delete first element of the list
@@ -488,8 +434,8 @@ classdef Sensor < handle
             obj.data_packages{end + 1} = data_package;          
         end
         
-        % Check if local_abs_temp = true;
-        function fire_detected = check_local_threshold(obj)
+        % Check happening if local_abs_temp = true;
+        function fire_detected = checkLocalThreshold(obj)
             if(obj.local_temp_threshold <= obj.temperature_list{end})
                 fire_detected = 1;
             else
@@ -497,12 +443,10 @@ classdef Sensor < handle
             end
         end 
         
-        % Check if local_der_temp = true;
-        function fire_detected = check_local_derivative(obj)
-            
+        % Check happening if local_der_temp = true;
+        function fire_detected = checkLocalDerivative(obj)
             fire_detected = 0;
             
-            %if length(obj.temperature_list) >=  obj.weather_data_list_length
             if obj.derivative_temperature >= obj.local_derivative_thresh
                 fire_detected = 1;
                 return;
@@ -510,12 +454,11 @@ classdef Sensor < handle
             %end 
         end
         
-        % Check if global_abs_temp = true;
-        function fire_detected = check_global_temp(obj)
+        % Check happening if global_abs_temp = true;
+        function fire_detected = checkGlobalTemp(obj)
             
             fire_detected = 0;
             
-            %temp_data = zeros(1, length(obj.received_data));
             temp_data ={};
             
             for d = 1 : length(obj.received_data)
@@ -538,11 +481,8 @@ classdef Sensor < handle
             end
         end
         
-        % Check if global_der_temp = true;
-        % Note: in the first x < weather_data_length time instances, ...
-        %this function will always return false; its not computing ...
-        %any derivative.
-        function fire_detected = check_global_derivative(obj)
+        % Check happening if global_der_temp = true;
+        function fire_detected = checkGlobalDerivative(obj)
             
             fire_detected = 0;          
             
@@ -555,10 +495,6 @@ classdef Sensor < handle
                         obj.time_stamp
                     temp_deriv_data{end + 1} = obj.received_data{d}.temp_deriv;
                 end
-                
-                %if obj.received_data{d}.temp_deriv == -1
-                %    data_corrpupted = true;
-                %end
             end
             
             for s = 1 : length(temp_deriv_data)
@@ -566,33 +502,31 @@ classdef Sensor < handle
                     temp_deriv_data{s};
                 
                 if temp_diff >= obj.global_derivative_thresh
-                
                     fire_detected = 1;
-
                 end
             end
         end
         
-        % Local fire detection algorithm
+        % Sensor fire detection algorithms
         function compute_fireprob(obj)
-            %variables needed
+            % Variables needed
             obj.fire_detected_local = false;
             counter = 0;
 
             if obj.local_abs_temp == 1
-                counter = counter + obj.check_local_threshold();
+                counter = counter + obj.checkLocalThreshold();
             end
 
             if obj.local_der_temp == 1
-                counter = counter + obj.check_local_derivative();
+                counter = counter + obj.checkLocalDerivative();
             end
 
             if obj.global_abs_temp == 1
-                counter = counter + obj.check_global_temp();
+                counter = counter + obj.checkGlobalTemp();
             end
 
             if obj.global_der_temp == 1
-                counter = counter + obj.check_global_derivative();
+                counter = counter + obj.checkGlobalDerivative();
             end
 
             if obj.and_mode == true
@@ -605,9 +539,6 @@ classdef Sensor < handle
                 end
             end
             
-            %for testing
-            %obj.fire_detected_local = true;
-            
             % Outlier detection arrays + time stamp
             outlier_detection.fire_detected_local = obj.fire_detected_local;
             outlier_detection.time_stamp = obj.time_stamp;
@@ -615,14 +546,14 @@ classdef Sensor < handle
             obj.outlier_detections{end + 1} = outlier_detection;
             
             if obj.fire_detected_local
-                Sensor.notify_base_about_fire(obj.location); 
+                Sensor.notifyBaseAboutFire(obj.location); 
             end
             
             % Remove old (~already treated) received data  
             obj.received_data = {};
         end
         
-        function send_data_packages(obj)
+        function sendDataPackages(obj)
             % Frame config for LE Frames
             cfgL2CAP = bleL2CAPFrameConfig('ChannelIdentifier', '0035');
             
@@ -693,7 +624,7 @@ classdef Sensor < handle
             % Collects bluetooth messages for simulation purposes, but ...
             %in reality it would be processed in parallel.
             for s = 1 : length(obj.neighborly_sensors)
-                obj.neighborly_sensors{s}.receive_data_package(LE_frame);
+                obj.neighborly_sensors{s}.receiveDataPackage(LE_frame);
             end
         end
     end

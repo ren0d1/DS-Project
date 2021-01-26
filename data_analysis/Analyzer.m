@@ -6,19 +6,12 @@ classdef Analyzer < handle
         
         fires_history;
         
-        file_name;
-        
-        
-        
-        
+        file_name; 
     end
     
     properties (Constant)
        
         threshold = 10;
-        
-        
-        
     end
     
     
@@ -26,13 +19,13 @@ classdef Analyzer < handle
      
         function sensor_uuids = retrieve_uuids(sensors_history)
 
-              %retrieve all sensors
+              % Retrieve all sensors
 
               sensor_uuids = {};
 
               for tick = 1:length(sensors_history)
 
-                %retrieve amount of subzones
+                % Retrieve amount of subzones
                 sensors_per_subzone_data = sensors_history{tick};
 
                 subzones = size(sensors_per_subzone_data);
@@ -94,7 +87,7 @@ classdef Analyzer < handle
             
         end
         
-        function save_system_matrix(obj,system_matrix)
+        function saveSystemMatrix(obj,system_matrix)
 
             name = split(obj.file_name, ".");
 
@@ -106,7 +99,7 @@ classdef Analyzer < handle
 
         end 
         
-        function closest_neighbors = get_closest_neighbor(obj)
+        function closest_neighbors = getClosestNeighbor(obj)
             
            closest_neighbors = {};
            fire_list = {};
@@ -117,14 +110,14 @@ classdef Analyzer < handle
                    
                     for f = 1:length(obj.fires_history{t})
 
-                        %check if already exists in list
+                        % Check if already exists in list
                         already_known = false;
 
                         for s = 1:length(fire_list)
 
                             if isequal(fire_list{s}.location, obj.fires_history{t}{f}.location)
 
-                                %already in list
+                                % Already in list
                                 already_known = true;   
                                 
                             end
@@ -132,7 +125,7 @@ classdef Analyzer < handle
                         end
                         
                         if ~already_known
-                            %insert new fire
+                            % Insert new fire
                             cur_fire_loc = obj.fires_history{t}{f}.location;
                             cur_fire_radius = obj.fires_history{t}{f}.radius;
                             
@@ -141,8 +134,7 @@ classdef Analyzer < handle
                             
                             
 
-                            %loop over all sensors and get closest one.
-                                           %
+                            % Loop over all sensors and get closest one.
                             sensors_per_subzone_data = obj.sensors_history{t};
 
                             subzones = size(obj.sensors_history{t},1);
@@ -185,9 +177,7 @@ classdef Analyzer < handle
             
         end
         
-        function get_sensor_pos_alarm(obj,tick)
-            
-           
+        function getSensorPosAlarm(obj,tick)
             for sz =  1:2
                counter = 0; 
                for s = 1:20
@@ -213,7 +203,7 @@ classdef Analyzer < handle
         end
         
         
-        function curr_sensor = get_closest_sensor(obj, location, tick)
+        function curr_sensor = getClosestSensor(obj, location, tick)
             
             distance = 1000;
             
@@ -260,29 +250,29 @@ classdef Analyzer < handle
         
         
         
-        function fire_struct = ret_fire_data(obj)
+        function fire_struct = retrieveFireData(obj)
 
             fire_struct = {};
 
             for t = 1:length(obj.fires_history)
 
-               %if there is a fire at time instance t, check it 
+               % If there is a fire at time instance t, check it 
                if ~isempty(obj.fires_history{t})
 
 
                     for f = 1:length(obj.fires_history{t})
 
-                        %check if already exists in list
+                        % Check if already exists in list
                         already_known = false;
 
                         for s = 1:length(fire_struct)
 
                             if isequal(fire_struct{s}.location, obj.fires_history{t}{f}.location)
 
-                                %already in list
+                                % Already in list
                                 already_known = true;
 
-                                %update radius and time alive
+                                % Update radius and time alive
                                 fire_struct{s}.time_alive = obj.fires_history{t}{f}.time_alive;
                                 fire_struct{s}.radius = obj.fires_history{t}{f}.radius;
 
@@ -292,7 +282,7 @@ classdef Analyzer < handle
 
                         if ~already_known
 
-                            %retrieve data and insert
+                            % Retrieve data and insert
                             current_fire.location = obj.fires_history{t}{f}.location;
 
                             current_fire.time_alive = obj.fires_history{t}{f}.time_alive;
@@ -300,41 +290,31 @@ classdef Analyzer < handle
                             current_fire.radius = obj.fires_history{t}{f}.radius;                   
 
                             fire_struct{end+1} = current_fire;
-                            
-                            
-                            
-
                         end
-
                     end 
-
                end
-
             end
-
         end 
         
-        function analyse_fires(obj)
+        function analyseFires(obj)
         
-            fire_struct = obj.ret_fire_data();
+            fire_struct = obj.retrieveFireData();
             
-            
-            %get number of fires
+            % Get number of fires
             disp('number of fires');
             num_fires = length(fire_struct)
             
-            %prepare data for plotting
+            % Prepare data for plotting
             radia = zeros(1,num_fires);
             time_alives = zeros(1,num_fires);
             
             for f =1:num_fires
                 radia(1,f) = fire_struct{f}.radius;
                 
-                time_alives(1,f) = fire_struct{f}.time_alive;
-                
+                time_alives(1,f) = fire_struct{f}.time_alive;               
             end
             
-            %obtain x axis
+            % Obtain x axis
             x = linspace(1,num_fires, num_fires);
             
             %scatter(x,time_alives)
@@ -352,14 +332,12 @@ classdef Analyzer < handle
             
             disp('max_fire_size')
             
-            max(radia)
-            
+            max(radia)          
         end
 
         
-        function performances = retrieve_sensor_performances(obj,sensor_uuids, sensors_history, fires_history)
-
-              %set up data to be returned
+        function performances = retrieveSensorPerformances(obj,sensor_uuids, sensors_history, fires_history)
+              % Set up data to be returned
 
               true_positives = zeros(1,length(sensor_uuids));
 
@@ -369,10 +347,10 @@ classdef Analyzer < handle
 
               false_negatives = zeros(1,length(sensor_uuids));
 
-            %time
+            % Time
             for tick = 1:length(sensors_history)
 
-               %retrieve amount of subzones
+               % Retrieve amount of subzones
                sensors_per_subzone_data = sensors_history{tick};
 
                subzones = size(sensors_history{tick},1);
@@ -392,7 +370,8 @@ classdef Analyzer < handle
                       sensor = sensors_per_subzone_data{sz,s};
 
                       distance = 1000;
-                      %get, if existing, the distance to the closest firefront
+                      % Get, if existing, the distance to the closest ...
+                      %firefront
                       for f = 1:length(fires_history{tick})
 
                           fire = fires_history{tick}{f};
@@ -424,7 +403,8 @@ classdef Analyzer < handle
 
                           false_positives(1,index) = false_positives(1,index) + 1;
                       
-                      %if the sensor hasn´t detected the fire till then, its considered as too late.    
+                      % If the sensor hasn´t detected the fire till ...
+                      %then, its considered as too late.    
                       elseif ~sensor.alarm_status && distance <= obj.threshold
 
                            false_negatives(1,index) = false_negatives(1,index) + 1;
@@ -442,11 +422,7 @@ classdef Analyzer < handle
             performances = [true_positives false_positives true_negatives false_negatives];
         end 
         
-
-           
-            
-        
-        function system_matrix = calc_sys_performance(obj)
+        function system_matrix = calcSysPerformance(obj)
 
             true_positive = 0;
             false_positive = 0;
@@ -457,10 +433,10 @@ classdef Analyzer < handle
             false_positives_sz_1 = 0;
             
             false_positives_sz_2 = 0;
-            %time
+            % Time
             for tick = 1:length(obj.sensors_history)
 
-               %retrieve amount of subzones
+               % Retrieve amount of subzones
                sensors_per_subzone_data = obj.sensors_history{tick};
 
                subzones = size(sensors_per_subzone_data);
@@ -483,7 +459,8 @@ classdef Analyzer < handle
                       sensor = sensors_per_subzone_data{sz,s};
 
                       distance = 1000;
-                      %get, if existing, the distance to the closest firefront
+                      % Get, if existing, the distance to the closest ...
+                      %firefront
                       for f = 1:length(obj.fires_history{tick})
 
                           fire = obj.fires_history{tick}{f};
@@ -515,7 +492,7 @@ classdef Analyzer < handle
                               false_positives_sz_2 = false_positives_sz_2 +1;
                           end
                           
-                      %if the sensor hasn´t detected the fire till then, its considered as too late.    
+                      % If the sensor hasn´t detected the fire till then, its considered as too late.    
                       elseif ~sensor.alarm_status && distance <= obj.threshold
 
                            false_negative = false_negative + 1;
@@ -530,8 +507,7 @@ classdef Analyzer < handle
 
             end
             
-            
-            %obtain x axis
+            % Obtain x axis
             x = linspace(1,length(obj.sensors_history), length(obj.sensors_history));
             
             scatter(x,false_positives_history);
@@ -541,13 +517,7 @@ classdef Analyzer < handle
 %             disp("subzones 1")
 %             false_positives_sz_1
 %             disp("subzones 2")
-%             false_positives_sz_2
-%             
+%             false_positives_sz_2     
         end
-     
-        
     end
-        
-        
-    
 end

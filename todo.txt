@@ -1,20 +1,8 @@
-GROUP TODO |
-------------
-Detect fire - H --> working on stats
-notify detected fire - R
-kill fire when notified - R
-kill sensor if too close to fire - R
-do analytics
-add comments ~ descriptions
-harmonize naming convention
-
 ----------
 OPTIONAL |
 ----------
-include wind in fire prob
 create network packets decoding problems and handle them
 simulate how the "Main" device gets contacted for notification and how it then contacts the base
-Change neighbors so they can interact between subzones
 
 -------
 NOTES |
@@ -23,4 +11,3 @@ No-multithreading because data overhead is way bigger than speed gained
 Acces todos: (current folder -> arrow -> reports -> todos)
 In 4.2 and 5.0, a new feature called Data Length Extensions (DLE) allows the ATT Payload to hold up to 244 bytes of data.
 UUID is transfered in measurement notification (is it useful?)
-Sensors global algorithm works with last "update" data (i.e. if tick 5 then it uses tick 4 data)

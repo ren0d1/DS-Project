@@ -1,6 +1,8 @@
 classdef WeatherGenerator
     %WEATHERGENERATOR Summary of this class goes here
-    %   Detailed explanation goes here
+    %   This class handles all the necessary functions to use yearly ...
+    %historical data about each day to generate new coherent data for ...
+    %each day and hour.
     
     properties (Access = private)
         global_temperatures_min_matrix;
@@ -11,6 +13,17 @@ classdef WeatherGenerator
         global_sunrise_time_matrix;
         global_wind_min_matrix;
         global_wind_max_matrix;
+    end
+    
+    methods(Static)
+        function value_at_time_t = getValueAtTimeT(t, value_next, value_prev, ...
+                                    t_next, t_prev)
+            % Uses the Sin (14R-1) method to get the temperature at the ...
+            %specified time t           
+            value_at_time_t = ((value_next + value_prev) / 2) - ...
+                ((value_next - value_prev) / 2) * ...
+                cos(pi * (t - t_prev) / (t_next - t_prev));
+        end
     end
     
     methods
@@ -52,7 +65,6 @@ classdef WeatherGenerator
             % CODE TO ALTER DATA %
             % Min temperature
             for t = 1 : length(regional_temperatures_min_matrix)
-                
                 %variation_of_the_day = temperature_variance * rand();
                 current_min_temperature = regional_temperatures_min_matrix(t);
                 regional_temperatures_min_matrix(t) = current_min_temperature;
@@ -61,9 +73,10 @@ classdef WeatherGenerator
             % Max temperature
             for t = 1 : length(regional_temperatures_max_matrix)
                 %variation_of_the_day = temperature_variance * rand();
+                variation_of_the_day = temperature_variance;
                 current_max_temperature = regional_temperatures_max_matrix(t);
                 regional_temperatures_max_matrix(t) = current_max_temperature + ...
-                                                        temperature_variance;
+                                                        variation_of_the_day;
             end
             
             % Min humidity
@@ -131,7 +144,7 @@ classdef WeatherGenerator
                 max_daily_wind = min_wind_matrix(d);
                 min_daily_wind = max_wind_matrix(d);
                 
-                %get time of lowest temperature
+                % Get time of lowest temperature
                 t_lowest = obj.global_sunrise_time_matrix(d) - 1;
                 
                 for t = 1:24
@@ -146,7 +159,7 @@ classdef WeatherGenerator
                        
                        temp_next = min_temperatures_matrix(d);
                        
-                       %10 hours from the previous day have always passed,
+                       % 10 hours from the previous day have always passed,
                        %since max is always supposed to be at 14
                        t_prev = 14;
                        
@@ -162,7 +175,7 @@ classdef WeatherGenerator
                         t_next = 14;
                     %CASE 3, later than 14    
                     else
-                       %second edge case
+                       % Second edge case
                        if d ==amount_of_days
                           temp_next = min_temperatures_matrix(1);
 
@@ -214,29 +227,12 @@ classdef WeatherGenerator
                     hourly_humidity_matrix(d, t) = humidity_at_time_t;
                     
                     % Wind discretization:
-                    %Deviates randomly between max wind and min wind
+                    % Deviates randomly between max wind and min wind ...
                     %measured.
                     wind_at_time_t = min_daily_wind + rand * (max_daily_wind - min_daily_wind);
                     hourly_wind_matrix(d,t) = wind_at_time_t;
                 end
-                
-            end
-                
-        end
-        
-    end
-    
-    
-    
-    methods(Static)
-        function value_at_time_t = getValueAtTimeT(t, value_next, value_prev, ...
-                                    t_next, t_prev)
-            %getTemperatureAtTimeT
-            %   Uses the Sin (14R-1) method to get the temperature at the ...
-            %specified time t           
-            value_at_time_t = ((value_next + value_prev) / 2) - ...
-                ((value_next - value_prev) / 2) * ...
-                cos(pi * (t - t_prev) / (t_next - t_prev));
+            end 
         end
     end
 end

@@ -1,6 +1,8 @@
 classdef BaseStation < handle
     %BASESTATION Summary of this class goes here
-    %   Detailed explanation goes here
+    %   This class simulate the entity (central or not) that is ...
+    %notified when a fire is detected and which then is tasked to ...
+    %call the necessary entities to deal with the fires.
     
     properties (Access = private)
         location_of_sensors_which_detected_fire;
@@ -11,12 +13,11 @@ classdef BaseStation < handle
     methods (Access = private)
         function obj = BaseStation()
             %BASESTATION Construct an instance of this class
-            %   Detailed explanation goes here
         end
     end
     
     methods(Static)
-        % Concrete implementation.  See Singleton superclass.
+        % Singleton pattern
         function obj = getInstance()
             persistent uniqueInstance;
             
@@ -29,7 +30,7 @@ classdef BaseStation < handle
     end
     
     methods        
-        function listen_for_alert(obj, alert_type, information)
+        function listenForAlert(obj, alert_type, information)
             switch alert_type
                case 1
                   obj.location_of_sensors_which_detected_fire{end+1} = information;
@@ -53,13 +54,13 @@ classdef BaseStation < handle
             end
         end
         
-        function sensors_info = get_sensors_to_replace(obj)
+        function sensors_info = getSensorsToReplace(obj)
             sensors_info = obj.dead_sensors_needing_replacement;
             obj.dead_sensors_needing_replacement = {};
         end
         
         function location_of_sensors_which_detected_fire = ...
-                    get_location_of_sensors_which_detected_fire(obj)
+                    getLocationOfSensorsWhichDetectedFire(obj)
                 
             location_of_sensors_which_detected_fire = ...
                 obj.location_of_sensors_which_detected_fire;
