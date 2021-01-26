@@ -131,7 +131,7 @@ classdef Visualizer < handle
             sensor_location = sensor.getLocation();
             sensor_plot = plot(obj.UIAxes, sensor_location(1), ...
                                 sensor_location(2), 'x', ...
-                                'Color', [0.5, 0.5, 1], 'MarkerSize', 2);
+                                'Color', [0.9, 1, 1], 'MarkerSize', 2);
             obj.sensors_plot{end+1} = sensor_plot;
             drawnow;
         end
