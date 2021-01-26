@@ -16,7 +16,8 @@ classdef Analyzer < handle
     
     
     methods (Static)
-     
+        %helper function to retrieve the sensors present throughout the
+        %simulation
         function sensor_uuids = retrieve_uuids(sensors_history)
 
               % Retrieve all sensors
@@ -98,7 +99,7 @@ classdef Analyzer < handle
 
 
         end 
-        
+        %returns the closest sensor for each fire occured during simulation
         function closest_neighbors = getClosestNeighbor(obj)
             
            closest_neighbors = {};
@@ -202,7 +203,8 @@ classdef Analyzer < handle
             
         end
         
-        
+        %returns the closest sensor for a fire at tick t; used for system
+        %matrix
         function curr_sensor = getClosestSensor(obj, location, tick)
             
             distance = 1000;
@@ -244,12 +246,9 @@ classdef Analyzer < handle
         end
         
         
-        
-        
-        
-        
-        
-        
+  
+        %returns the total number of fires during simulation, and their
+        %respective time alives, and the radius till they were detected.
         function fire_struct = retrieveFireData(obj)
 
             fire_struct = {};
@@ -295,7 +294,7 @@ classdef Analyzer < handle
                end
             end
         end 
-        
+        %outputs relevant numbers to the user.
         function analyseFires(obj)
         
             fire_struct = obj.retrieveFireData();
@@ -335,7 +334,7 @@ classdef Analyzer < handle
             max(radia)          
         end
 
-        
+        %retrieves the performance matrices for each sensor.
         function performances = retrieveSensorPerformances(obj,sensor_uuids, sensors_history, fires_history)
               % Set up data to be returned
 
@@ -421,7 +420,8 @@ classdef Analyzer < handle
             
             performances = [true_positives false_positives true_negatives false_negatives];
         end 
-        
+        %calculates the overal systemperformance accordingly to the
+        %established rules.
         function system_matrix = calcSysPerformance(obj)
 
             true_positive = 0;

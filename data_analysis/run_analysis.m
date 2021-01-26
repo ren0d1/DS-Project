@@ -2,6 +2,7 @@ clear all; % clear all variables from memory (needed for singleton to work prope
 clc; % clear command window
 
 % Get matrices
+%specify filename that shall be analyzed
 file_name = 'simulation-24-Jan-2021 13-29-51.mat';
 
 a = Analyzer(file_name);
